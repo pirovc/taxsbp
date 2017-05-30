@@ -25,6 +25,7 @@
 
 import binpacking
 import argparse
+import random
 from collections import defaultdict
 
 def main():
@@ -44,8 +45,9 @@ def main():
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
 	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
+	add_parser.add_argument('-ni', required=True, metavar='<nodes_bins_file>', dest="nodes_bins_file", help="nodes.dmp from NCBI Taxonomy for the bins")
 	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id")
-	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
+	add_parser.add_argument('-nf', required=True, metavar='<nodes_input_file>', dest="nodes_input_file", help="nodes.dmp from NCBI Taxonomy for the new added sequences")
 
 	# remove
 	remove_parser = subparsers.add_parser('remove', help='Remove sequences to existing bins')
@@ -53,7 +55,7 @@ def main():
 	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
 	remove_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids to be removed")
 	
-	parser.add_argument('-v', action='version', version='%(prog)s 0.02')
+	parser.add_argument('-v', action='version', version='%(prog)s 0.03')
 	args = parser.parse_args()
 
 	global parents
@@ -62,8 +64,8 @@ def main():
 		
 	if args.which=="create":
 
-		parents, leaves, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file))
-
+		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file))
+	
 		# Bin length (estimated from number of bins or directly)
 		if args.bin_len:
 			bin_len = args.bin_len
@@ -78,11 +80,32 @@ def main():
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
-				print(id,binid,sep="\t")
+				# Output: accession, seq len, taxid, bin
+				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 	
 	elif args.which=="add":
-		print("TODO add")
+		bins, lens = read_bins(args.bins_file, read_nodes(args.nodes_bins_file))
+		nodes = read_nodes(args.nodes_input_file)
+		parents, leaves, accessions, total_len = read_input(args.input_file, 1, nodes)
+		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
+		for accession,(length,taxid) in sorted(accessions.items()):
+			t = taxid
+			# If taxid of the entry is not directly assigned, look for LCA with assignment
+			while not bins[t] and t!=1: t = nodes[t]
 
+			# If taxid is assigned among several bins, chooses smallest to make the assignment
+			if len(bins[t])>1:
+				d = {b:lens[b] for b in bins[t]}
+				bin = min(d, key=d.get)
+			else:
+				bin = list(bins[t])[0]
+			# Add length count to the bin (makes it distribute more evenly, 
+			# but splits similar sequences and affects more bins, resulting
+			# in more indexes to be updated)
+			# lens[bin]+=length 
+			
+			print(accession, length, taxid, bin, sep="\t")			
+		
 	elif args.which=="remove": 
 		print("TODO remove")
 	
@@ -133,32 +156,43 @@ def read_nodes(nodes_file):
 	
 def read_input(input_file, start_node, nodes):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
-	parents = defaultdict(set)
+	parents = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
 	leaves = defaultdict(list)
+	accessions = dict()
 	total_len = 0
 	with open(input_file,'r') as file:
 		for line in file:
 			fields = line.split('\t')
 			accession = fields[0]
 			if accession=="na": continue
-			taxid = int(fields[2])
 			length = int(fields[1])
-			leaves[taxid].append((length,accession))
+			taxid = int(fields[2])
+			leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
+			accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 			while taxid!=1: #Check all taxids in the lineage
 				if taxid==start_node: total_len+=length # Just account sequence to total when it's on the sub-tree
 				parents[nodes[taxid]].add(taxid) # Create parent:children structure only for used taxids
 				taxid = nodes[taxid]
 				
-	return parents, leaves, total_len
+	return parents, leaves, accessions, total_len
 
-def read_bins(bins_file):
+def read_bins(bins_file, nodes):
 	# READ bins -> fields (0:ACCESSION 1:BIN)
-	nodes = {}
-	with open(bins_file,'r') as fnodes:
-		for line in fnodes:
-			taxid, parent_taxid, _ = line.split('\t|\t',2)
-			nodes[int(taxid)] = int(parent_taxid)
-	return nodes
+	bins = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
+	lens = defaultdict(int)
+	with open(bins_file,'r') as file:
+		for line in file:
+			fields = line.split('\t')
+			accession = fields[0]
+			if accession=="na": continue
+			length = int(fields[1])
+			taxid = int(fields[2])
+			bin = int(fields[3])
+			lens[bin]+=length
+			while taxid!=1: #Check all taxids in the lineage
+				bins[taxid].add(bin) # Create parent:children structure only for used taxids
+				taxid = nodes[taxid]
+	return bins, lens
 	
 #def ApproxSBP_stack(v):
 #	stack = [v]

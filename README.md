@@ -24,11 +24,20 @@ sequence information (from NCBI refseq/genbank):
     awk -F "\t" '$12=="Complete Genome" && $11=="latest"{url_count=split($20,url,"/"); print $6"\t"$20"/"url[url_count] "_assembly_report.txt"}' |
     parallel -j 24 --colsep "\t" 'wget -qO- {2} | grep "^[^#]" | tr -d "\r" | sed -e s/$/\\t{1}\\t`basename {2}`/' > refseq_bac_cg_ar.txt 2> refseq_bac_cg_ar.err
 
-	
+The assembly accession starts with a three letter prefix, GCA for GenBank assemblies and GCF for RefSeq assemblies. This is followed by an underscore and 9 digits. A version is then added to the accession. For example, the assembly accession for the GenBank version of the current public human reference assembly ( GRCh37.p2 ) is GCA_000001405.3 [https://www.ncbi.nlm.nih.gov/assembly/model/]
 
-	The assembly accession starts with a three letter prefix, GCA for GenBank assemblies and GCF for RefSeq assemblies. This is followed by an underscore and 9 digits. A version is then added to the accession. For example, the assembly accession for the GenBank version of the current public human reference assembly ( GRCh37.p2 ) is GCA_000001405.3 [https://www.ncbi.nlm.nih.gov/assembly/model/]
-		grep "^[^#]" *_assembly_report.txt | tr -d "\r" | cut -f 1,7,9 | awk -F "\t" '{match($1,"GC[A|F]_[0-9]*\\.[0-9]*",x); print x[0]"\t"$2"\t"$3}' | sort -k 1,1 | join - <(sort -k 1,1 assembly_summary.txt) -o "1.2,1.3,2.6" -t$'\t'
+from new:
 
+assembly_summary_file="refseq_bacteria_cg/2017-05-30_12-14-43_assembly_summary.txt"
+assembly_reports_folder="refseq_bacteria_cg/files/"
+cut -f 6,20 ${assembly_summary_file} | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/' |
+
+from _added.txt
+
+added_accession_file="refseq_bacteria_cg/2017-05-30_13-01-54_added.txt"
+assembly_summary_file="refseq_bacteria_cg/2017-05-30_13-01-54_assembly_summary.txt"
+assembly_reports_folder="refseq_bacteria_cg/files/"
+join <(sort -k 1,1 ${added_accession_file}) <(sort -k 1,1 ${assembly_summary_file}) -t$'\t' -o "2.6,2.20"  | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
 
 	
 Output:
