@@ -45,9 +45,9 @@ def main():
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
 	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
-	add_parser.add_argument('-ni', required=True, metavar='<nodes_bins_file>', dest="nodes_bins_file", help="nodes.dmp from NCBI Taxonomy for the bins")
 	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id")
-	add_parser.add_argument('-nf', required=True, metavar='<nodes_input_file>', dest="nodes_input_file", help="nodes.dmp from NCBI Taxonomy for the new added sequences")
+	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy (new sequences)")
+	add_parser.add_argument('-m', required=True, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
 
 	# remove
 	remove_parser = subparsers.add_parser('remove', help='Remove sequences to existing bins')
@@ -84,8 +84,8 @@ def main():
 				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 	
 	elif args.which=="add":
-		bins, lens = read_bins(args.bins_file, read_nodes(args.nodes_bins_file))
-		nodes = read_nodes(args.nodes_input_file)
+		nodes = read_nodes(args.nodes_file)
+		bins, lens = read_bins(args.bins_file, nodes, read_merged(args.merged_file))
 		parents, leaves, accessions, total_len = read_input(args.input_file, 1, nodes)
 		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 		for accession,(length,taxid) in sorted(accessions.items()):
@@ -99,15 +99,20 @@ def main():
 				bin = min(d, key=d.get)
 			else:
 				bin = list(bins[t])[0]
-			# Add length count to the bin (makes it distribute more evenly, 
-			# but splits similar sequences and affects more bins, resulting
-			# in more indexes to be updated)
-			# lens[bin]+=length 
+			# Add length count to the bin to be accounted in the next sequences
+			# (makes it distribute more evenly, but splits similar sequences and affects more bins, resulting in more indexes to be updated)
+			#lens[bin]+=length 
 			
 			print(accession, length, taxid, bin, sep="\t")			
 		
-	elif args.which=="remove": 
-		print("TODO remove")
+	elif args.which=="remove":
+		r = set(line.split('\t')[0] for line in open(args.input_file,'r'))
+
+		with open(args.bins_file,'r') as file:
+			for line in file:
+				accession = line.split('\t')[0]
+				if accession not in r:
+					print(line, end='')
 	
 # Input: list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Output: bin packed list of tuples [(seqlen, seqid1 [, ..., seqidN])]
@@ -154,6 +159,15 @@ def read_nodes(nodes_file):
 			nodes[int(taxid)] = int(parent_taxid)
 	return nodes
 	
+def read_merged(merged_file):
+	# READ nodes -> fields (1:OLD TAXID 2:NEW TAXID)
+	merged = {}
+	with open(merged_file,'r') as fmerged:
+		for line in fmerged:
+			old_taxid, new_taxid, _ = line.rstrip().split('\t|',2)
+			merged[int(old_taxid)] = int(new_taxid)
+	return merged
+	
 def read_input(input_file, start_node, nodes):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
 	parents = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
@@ -164,9 +178,10 @@ def read_input(input_file, start_node, nodes):
 		for line in file:
 			fields = line.split('\t')
 			accession = fields[0]
-			if accession=="na": continue
+			if accession=="na": continue # SKIP ENTRY WITH NO ACCESSION - TODO log
 			length = int(fields[1])
 			taxid = int(fields[2])
+			if taxid not in nodes: continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
 			leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 			accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 			while taxid!=1: #Check all taxids in the lineage
@@ -176,7 +191,7 @@ def read_input(input_file, start_node, nodes):
 				
 	return parents, leaves, accessions, total_len
 
-def read_bins(bins_file, nodes):
+def read_bins(bins_file, nodes, merged):
 	# READ bins -> fields (0:ACCESSION 1:BIN)
 	bins = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
 	lens = defaultdict(int)
@@ -184,14 +199,18 @@ def read_bins(bins_file, nodes):
 		for line in file:
 			fields = line.split('\t')
 			accession = fields[0]
-			if accession=="na": continue
 			length = int(fields[1])
 			taxid = int(fields[2])
 			bin = int(fields[3])
 			lens[bin]+=length
 			while taxid!=1: #Check all taxids in the lineage
 				bins[taxid].add(bin) # Create parent:children structure only for used taxids
-				taxid = nodes[taxid]
+				# If taxid is not present on newer version of nodes.dmp, look for merged entry
+				try:
+					taxid = nodes[taxid]
+				except KeyError:
+					taxid = merged[taxid] # TODO log if not found on both
+					
 	return bins, lens
 	
 #def ApproxSBP_stack(v):

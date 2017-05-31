@@ -30,7 +30,7 @@ from new:
 
 assembly_summary_file="refseq_bacteria_cg/2017-05-30_12-14-43_assembly_summary.txt"
 assembly_reports_folder="refseq_bacteria_cg/files/"
-cut -f 6,20 ${assembly_summary_file} | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/' |
+cut -f 6,20 ${assembly_summary_file} | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
 
 from _added.txt
 
@@ -38,6 +38,13 @@ added_accession_file="refseq_bacteria_cg/2017-05-30_13-01-54_added.txt"
 assembly_summary_file="refseq_bacteria_cg/2017-05-30_13-01-54_assembly_summary.txt"
 assembly_reports_folder="refseq_bacteria_cg/files/"
 join <(sort -k 1,1 ${added_accession_file}) <(sort -k 1,1 ${assembly_summary_file}) -t$'\t' -o "2.6,2.20"  | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
+
+from _removed.txt
+	
+removed_accession_file="refseq_bacteria_cg/2017-05-31_18-08-59_removed.txt"
+assembly_summary_file="refseq_bacteria_cg/2017-03-21_00-00-00_assembly_summary.txt"
+assembly_reports_folder="refseq_bacteria_cg/files/"
+join <(sort -k 1,1 ${removed_accession_file}) <(sort -k 1,1 ${assembly_summary_file}) -t$'\t' -o "2.6,2.20"  | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
 
 	
 Output:
