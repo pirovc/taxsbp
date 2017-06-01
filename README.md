@@ -11,49 +11,35 @@ Dependencies:
 
 Input: 
 ------
- * nodes.dmp and a file with sequence information (identifier, length and taxonomic assignment)
+ * sequence information (identifier, length and taxonomic assignment) and taxonomy (nodes.dmp and merged.dmp)
 
-nodes.dmp:
+sequence information (*_updated_sequence_accession.txt from https://github.com/pirovc/genome_updater):
 
-	wget -qO- ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz | tar xfz - nodes.dmp
-
-sequence information (from NCBI refseq/genbank):
-
-    # Bacteria - RefSeq - Complete Genomes (Download assembly reports adding taxonomic assignment at the end) 
-    wget -qO- ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/bacteria/assembly_summary.txt | tail -n+3 |
-    awk -F "\t" '$12=="Complete Genome" && $11=="latest"{url_count=split($20,url,"/"); print $6"\t"$20"/"url[url_count] "_assembly_report.txt"}' |
-    parallel -j 24 --colsep "\t" 'wget -qO- {2} | grep "^[^#]" | tr -d "\r" | sed -e s/$/\\t{1}\\t`basename {2}`/' > refseq_bac_cg_ar.txt 2> refseq_bac_cg_ar.err
-
-The assembly accession starts with a three letter prefix, GCA for GenBank assemblies and GCF for RefSeq assemblies. This is followed by an underscore and 9 digits. A version is then added to the accession. For example, the assembly accession for the GenBank version of the current public human reference assembly ( GRCh37.p2 ) is GCA_000001405.3 [https://www.ncbi.nlm.nih.gov/assembly/model/]
-
-from new:
-
-assembly_summary_file="refseq_bacteria_cg/2017-05-30_12-14-43_assembly_summary.txt"
-assembly_reports_folder="refseq_bacteria_cg/files/"
-cut -f 6,20 ${assembly_summary_file} | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
-
-from _added.txt
-
-added_accession_file="refseq_bacteria_cg/2017-05-30_13-01-54_added.txt"
-assembly_summary_file="refseq_bacteria_cg/2017-05-30_13-01-54_assembly_summary.txt"
-assembly_reports_folder="refseq_bacteria_cg/files/"
-join <(sort -k 1,1 ${added_accession_file}) <(sort -k 1,1 ${assembly_summary_file}) -t$'\t' -o "2.6,2.20"  | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
-
-from _removed.txt
+    # Archaea - RefSeq - Complete Genomes ** also downloads taxonomy **
+	./genome_updater.sh -d "refseq" -g "archaea" -c "all" -l "Complete Genome" -f "genomic.fna.gz,assembly_report.txt" -o refseq_archaea_cg -t 12 -r -a
+	grep "^A" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 3,4,5 > input.txt
 	
-removed_accession_file="refseq_bacteria_cg/2017-05-31_18-08-59_removed.txt"
-assembly_summary_file="refseq_bacteria_cg/2017-03-21_00-00-00_assembly_summary.txt"
-assembly_reports_folder="refseq_bacteria_cg/files/"
-join <(sort -k 1,1 ${removed_accession_file}) <(sort -k 1,1 ${assembly_summary_file}) -t$'\t' -o "2.6,2.20"  | awk -F "\t" -v assembly_reports_folder="${assembly_reports_folder}" '{url_count=split($2,url,"/"); print $1 "\t" assembly_reports_folder url[url_count] "_assembly_report.txt"}' | parallel --colsep "\t" 'grep "^[^#]" {2} | tr -d "\r" | cut -f 7,9 | sed s/$/\\t{1}/'
-
+taxonomy:
+	
+	# Unpack  
+	tar xfz refseq_archaea_cg/${date}_taxdump.tar.gz nodes.dmp merged.dmp
 	
 Output:
 -------
- * A tab-separated file with sequence identifier and bin id
+ * A tab-separated file with sequence identifier, length, taxonomic assignment and bin identifier
 
 Running:
 --------
-	python3 TaxSBP.py -a refseq_bac_cg_ar.txt -n nodes.dmp -s 2 -b 50
+
+	# Create new bins
+	python3 taxsbp/TaxSBP.py create -f input.txt -n nodes.dmp -s 2157 -b 20 > bins.txt
+	
+	# Add new sequences to existing bins
+	python3 taxsbp/TaxSBP.py create -f added.txt -i bins.txt -n nodes.dmp -m merged.dmp > new_bins.txt
+	
+	# Remove sequences to existing bins
+	python3 taxsbp/TaxSBP.py create -f removed.txt -i bins.txt > bins_updated.txt
+	
 
 References:
 -----------

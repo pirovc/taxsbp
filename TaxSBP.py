@@ -44,16 +44,17 @@ def main():
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
-	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
 	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id")
+	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
 	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy (new sequences)")
 	add_parser.add_argument('-m', required=True, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
 
 	# remove
 	remove_parser = subparsers.add_parser('remove', help='Remove sequences to existing bins')
 	remove_parser.set_defaults(which='remove')
-	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
 	remove_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids to be removed")
+	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
+	
 	
 	parser.add_argument('-v', action='version', version='%(prog)s 0.03')
 	args = parser.parse_args()
