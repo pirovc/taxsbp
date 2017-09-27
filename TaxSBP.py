@@ -67,6 +67,10 @@ def main():
 
 		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file))
 	
+		if not parents[args.start_node]:
+			print("Invalid taxid / no children nodes found")
+			return
+			
 		# Bin length (estimated from number of bins or directly)
 		if args.bin_len:
 			bin_len = args.bin_len
