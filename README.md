@@ -7,7 +7,9 @@ Implementation of the approximation algorithm for the hierarchically structured 
 
 Dependencies:
 -------------
- - binpacking=1.3 (https://pypi.python.org/pypi/binpacking)
+binpacking=1.3 (https://pypi.python.org/pypi/binpacking)
+ 
+	pip install binpacking
 
 Input: 
 ------
