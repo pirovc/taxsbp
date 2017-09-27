@@ -118,7 +118,7 @@ def main():
 				accession = line.split('\t')[0]
 				if accession not in r:
 					print(line, end='')
-	
+
 # Input: list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Output: bin packed list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Returns multi-valued tuple: first [summed] length summed followed by the id[s]
