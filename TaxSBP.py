@@ -56,7 +56,7 @@ def main():
 	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
 	
 	
-	parser.add_argument('-v', action='version', version='%(prog)s 0.03')
+	parser.add_argument('-v', action='version', version='%(prog)s 0.04')
 	args = parser.parse_args()
 
 	global parents
@@ -68,9 +68,9 @@ def main():
 		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file))
 	
 		if not parents[args.start_node]:
-			print("Invalid taxid / no children nodes found")
+			print("No children nodes found / invalid taxid -", str(args.start_node))
 			return
-			
+		
 		# Bin length (estimated from number of bins or directly)
 		if args.bin_len:
 			bin_len = args.bin_len
@@ -87,6 +87,7 @@ def main():
 			for id in bin[1:]:
 				# Output: accession, seq len, taxid, bin
 				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
+
 	elif args.which=="add":
 		nodes = read_nodes(args.nodes_file)
 		bins, lens = read_bins(args.bins_file, nodes, read_merged(args.merged_file))
@@ -106,9 +107,9 @@ def main():
 			# Add length count to the bin to be accounted in the next sequences
 			# (makes it distribute more evenly, but splits similar sequences and affects more bins, resulting in more indexes to be updated)
 			#lens[bin]+=length 
-			
+
 			print(accession, length, taxid, bin, sep="\t")			
-		
+
 	elif args.which=="remove":
 		r = set(line.split('\t')[0] for line in open(args.input_file,'r'))
 
@@ -214,7 +215,7 @@ def read_bins(bins_file, nodes, merged):
 				if taxid==1: break
 				# If taxid is not present on newer version of nodes.dmp, look for merged entry
 				try:
-					taxid = nodes[taxid]
+					prin = nodes[taxid]
 				except KeyError:
 					taxid = merged[taxid] # TODO log if not found on both
 					
