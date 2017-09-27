@@ -46,6 +46,7 @@ Parameters:
 -----------
 
 $ python3 TaxSBP.py -h
+
 	usage: TaxSBP [-h] [-v] {create,add,remove} ...
 
 	positional arguments:
@@ -59,6 +60,7 @@ $ python3 TaxSBP.py -h
 	  -v                   show program's version number and exit
   
 $ python3 TaxSBP.py create -h
+
 	usage: TaxSBP create [-h] -f <input_file> -n <nodes_file> [-s <start_node>]
 						 [-b <bins>] [-l <bin_len>]
 
@@ -73,6 +75,7 @@ $ python3 TaxSBP.py create -h
 					   define the number of bins
 	  
 $ python3 TaxSBP.py add -h
+
 	usage: TaxSBP add [-h] -f <input_file> -i <bins_file> -n <nodes_file> -m
 					  <merged_file>
 
@@ -86,6 +89,7 @@ $ python3 TaxSBP.py add -h
 	  -m <merged_file>  merged.dmp from NCBI Taxonomy (new sequences)
  
 $ python3 TaxSBP.py remove -h
+
 	usage: TaxSBP remove [-h] -f <input_file> -i <bins_file>
 
 	optional arguments:
