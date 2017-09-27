@@ -73,7 +73,7 @@ def main():
 		else:
 			# Estimate bin len based on number of requested bins
 			bin_len = total_len/float(args.bins) 
-
+		
 		# Run taxonomic structured bin packing
 		final_bins = ApproxSBP(args.start_node) 			## RECURSIVE
 		#final_bins = ApproxSBP_stack(args.start_node)		## STACK
@@ -83,7 +83,6 @@ def main():
 			for id in bin[1:]:
 				# Output: accession, seq len, taxid, bin
 				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
-	
 	elif args.which=="add":
 		nodes = read_nodes(args.nodes_file)
 		bins, lens = read_bins(args.bins_file, nodes, read_merged(args.merged_file))
@@ -158,6 +157,7 @@ def read_nodes(nodes_file):
 		for line in fnodes:
 			taxid, parent_taxid, _ = line.split('\t|\t',2)
 			nodes[int(taxid)] = int(parent_taxid)
+	nodes[1] = 0 #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
 	return nodes
 	
 def read_merged(merged_file):
@@ -185,9 +185,10 @@ def read_input(input_file, start_node, nodes):
 			if taxid not in nodes: continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
 			leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 			accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
-			while taxid!=1: #Check all taxids in the lineage
+			while True: #Check all taxids in the lineage
 				if taxid==start_node: total_len+=length # Just account sequence to total when it's on the sub-tree
 				parents[nodes[taxid]].add(taxid) # Create parent:children structure only for used taxids
+				if taxid==1: break
 				taxid = nodes[taxid]
 				
 	return parents, leaves, accessions, total_len
@@ -204,8 +205,9 @@ def read_bins(bins_file, nodes, merged):
 			taxid = int(fields[2])
 			bin = int(fields[3])
 			lens[bin]+=length
-			while taxid!=1: #Check all taxids in the lineage
+			while True: #Check all taxids in the lineage
 				bins[taxid].add(bin) # Create parent:children structure only for used taxids
+				if taxid==1: break
 				# If taxid is not present on newer version of nodes.dmp, look for merged entry
 				try:
 					taxid = nodes[taxid]
