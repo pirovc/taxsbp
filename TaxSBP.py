@@ -37,9 +37,9 @@ def main():
 	create_parser.set_defaults(which='create')
 	create_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with sequence id, sequence length and taxonomic id")
 	create_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
-	create_parser.add_argument('-s', default=2, metavar='<start_node>', dest="start_node", type=int, help="Start node. Default: 2 (Bacteria)")
-	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Number of bins (estimated by sequence lenghts). Default: 50")
-	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins")
+	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
+	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Number of bins (estimated by sequence lenghts). Default: 50 [Mutually exclusive -l]")
+	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
 	
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
@@ -215,7 +215,7 @@ def read_bins(bins_file, nodes, merged):
 				if taxid==1: break
 				# If taxid is not present on newer version of nodes.dmp, look for merged entry
 				try:
-					prin = nodes[taxid]
+					taxid = nodes[taxid]
 				except KeyError:
 					taxid = merged[taxid] # TODO log if not found on both
 					
