@@ -37,6 +37,7 @@ def main():
 	create_parser.set_defaults(which='create')
 	create_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with sequence id, sequence length and taxonomic id")
 	create_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
+	create_parser.add_argument('-m', required=False, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
 	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Number of bins (estimated by sequence lenghts). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
@@ -65,7 +66,7 @@ def main():
 		
 	if args.which=="create":
 
-		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file))
+		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, read_nodes(args.nodes_file), read_merged(args.merged_file))
 	
 		if not parents[args.start_node]:
 			print("No children nodes found / invalid taxid -", str(args.start_node))
@@ -90,8 +91,9 @@ def main():
 
 	elif args.which=="add":
 		nodes = read_nodes(args.nodes_file)
-		bins, lens = read_bins(args.bins_file, nodes, read_merged(args.merged_file))
-		parents, leaves, accessions, total_len = read_input(args.input_file, 1, nodes)
+		merged = read_merged(args.merged_file)
+		bins, lens = read_bins(args.bins_file, nodes, merged)
+		parents, leaves, accessions, total_len = read_input(args.input_file, 1, nodes, merged)
 		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 		for accession,(length,taxid) in sorted(accessions.items()):
 			t = taxid
@@ -174,7 +176,7 @@ def read_merged(merged_file):
 			merged[int(old_taxid)] = int(new_taxid)
 	return merged
 	
-def read_input(input_file, start_node, nodes):
+def read_input(input_file, start_node, nodes, merged):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
 	parents = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
 	leaves = defaultdict(list)
@@ -187,7 +189,11 @@ def read_input(input_file, start_node, nodes):
 			if accession=="na": continue # SKIP ENTRY WITH NO ACCESSION - TODO log
 			length = int(fields[1])
 			taxid = int(fields[2])
-			if taxid not in nodes: continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
+			if taxid not in nodes: 
+				if taxid not in merged: 
+					continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
+				else:
+					taxid = merged[taxid] # Get new taxid from merged.dmp
 			leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 			accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 			while True: #Check all taxids in the lineage
