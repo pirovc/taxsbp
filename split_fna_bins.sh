@@ -8,7 +8,7 @@
 #{print $0 > filen".fna"}' ../arc_bac_all_20170925.fna
 
 zcat $1 | 
-awk -v taxsbpfile=$2 -v outputfolder=$3'
+awk -v taxsbpfile=$2 -v outputfolder=$3 '
 BEGIN{
 	print "Parsing "taxsbpfile"...";
 	while (getline < taxsbpfile){clust[$1]=$4;}; 
