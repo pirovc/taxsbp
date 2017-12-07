@@ -18,9 +18,10 @@ BEGIN{
 	print "Writing files ... ";
 }
 /^>/ {
-filen=clust[substr($1,2)];
+acc=substr($1,2);
+filen=(acc in clust)?clust[acc]:"no_cluster";
 cont+=1;
-if(cont % int(l/1000) == 0) {print cont" sequences out of "l" (" (cont/l)*100 "%)"};
+if(cont % int((l/1000)+1) == 0) {print cont" sequences out of "l" (" (cont/l)*100 "%)"};
 }
 {print $0 | " gzip >> "outputfolder"/"filen".fna.gz"}
 END{print "Done!"}' 
