@@ -113,7 +113,7 @@ def main():
 			print(accession, length, taxid, bin, sep="\t")			
 
 	elif args.which=="remove":
-		r = set(line.split('\t')[0] for line in open(args.input_file,'r'))
+		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
 
 		with open(args.bins_file,'r') as file:
 			for line in file:
