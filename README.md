@@ -33,15 +33,15 @@ Running:
 --------
 
 	# Create new bins
-	grep "^A" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 3,4,5 > input.txt
+	grep "^A" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 4,5,6 > input.txt
 	python3 taxsbp/TaxSBP.py create -f input.txt -n nodes.dmp -s 2157 -b 20 > bins.txt
 	
 	# Add new sequences to existing bins
-	grep "^A" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 3,4,5 > added.txt.
+	grep "^A" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 4,5,6 > added.txt.
 	python3 taxsbp/TaxSBP.py add -f added.txt -i bins.txt -n nodes.dmp -m merged.dmp > added_bins.txt
 	
 	# Remove sequences to existing bins
-	grep "^R" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 3 > removed.txt
+	grep "^R" refseq_archaea_cg/${date}_updated_sequence_accession.txt | cut -f 4 > removed.txt
 	python3 taxsbp/TaxSBP.py remove -f removed.txt -i bins.txt > bins_updated.txt
 	
 Parameters:
