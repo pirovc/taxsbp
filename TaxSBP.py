@@ -170,7 +170,7 @@ def read_nodes(nodes_file):
 def read_merged(merged_file):
 	# READ nodes -> fields (1:OLD TAXID 2:NEW TAXID)
 	merged = {}
-	if merged:
+	if merged_file:
 		with open(merged_file,'r') as fmerged:
 			for line in fmerged:
 				old_taxid, new_taxid, _ = line.rstrip().split('\t|',2)
