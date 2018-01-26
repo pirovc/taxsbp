@@ -46,16 +46,22 @@ def main():
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
 	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id")
-	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
+	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy (new sequences)")
 	add_parser.add_argument('-m', required=True, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
+	add_parser.add_argument('--distribute', dest="distribute", default=False, action='store_true', help="Distribute newly added sequences among more bins. Without this option, TaxSBP will try to update as few bins as possible.")
 
 	# remove
 	remove_parser = subparsers.add_parser('remove', help='Remove sequences to existing bins')
 	remove_parser.set_defaults(which='remove')
 	remove_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids to be removed")
-	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins (Tab-separated file with sequence id and bin)")
+	remove_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	
+	# list
+	list_parser = subparsers.add_parser('list', help='List bins based on sequence ids')
+	list_parser.set_defaults(which='list')
+	list_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids")
+	list_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	
 	parser.add_argument('-v', action='version', version='%(prog)s 0.04')
 	args = parser.parse_args()
@@ -106,9 +112,10 @@ def main():
 				bin = min(d, key=d.get)
 			else:
 				bin = list(bins[t])[0]
+			
 			# Add length count to the bin to be accounted in the next sequences
-			# (makes it distribute more evenly, but splits similar sequences and affects more bins, resulting in more indexes to be updated)
-			#lens[bin]+=length 
+			# (makes it distribute more evenly, but splits similar sequences and affects more bins)
+			if args.distribute: lens[bin]+=length 
 
 			print(accession, length, taxid, bin, sep="\t")			
 
@@ -120,6 +127,15 @@ def main():
 				accession = line.split('\t')[0]
 				if accession not in r:
 					print(line, end='')
+
+	elif args.which=="list":
+		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
+		with open(args.bins_file,'r') as file:
+			for line in file:
+				accession = line.split('\t')[0]
+				if accession in r:
+					print(line, end='')
+
 
 # Input: list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Output: bin packed list of tuples [(seqlen, seqid1 [, ..., seqidN])]
