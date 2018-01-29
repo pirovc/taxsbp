@@ -26,6 +26,7 @@
 import binpacking
 import argparse
 import random
+import sys
 from collections import defaultdict
 
 def main():
@@ -63,8 +64,12 @@ def main():
 	list_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids")
 	list_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	
-	parser.add_argument('-v', action='version', version='%(prog)s 0.04')
+	parser.add_argument('-v', action='version', version='%(prog)s 0.05')
 	args = parser.parse_args()
+
+	if len(sys.argv[1:])==0: # Print help calling script without parameters
+		parser.print_help() 
+		return 0
 
 	global parents
 	global leaves
