@@ -10,6 +10,11 @@ binpacking=1.3 (https://pypi.python.org/pypi/binpacking)
  
 	pip install binpacking
 
+or install manually into TaxSBP.py folder:
+	
+	wget https://pypi.python.org/packages/c9/fe/56782753922a195d332d419949f889c1d59cab7b1780db2351bd8b99501c/binpacking-1.3.tar.gz
+	tar -xvf binpacking-1.3.tar.gz binpacking-1.3/binpacking/ --strip-components=1
+	
 Input: 
 ------
  * A tab-separated file with sequence id, sequence length and taxonomic id 
