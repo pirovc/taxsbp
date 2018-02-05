@@ -72,14 +72,11 @@ def main():
 		parser.print_help() 
 		return 0
 
-	global parents
-	global leaves
-	global bin_len
-
 	if args.which=="create":
 		nodes, ranks = read_nodes(args.nodes_file, False if args.pre_cluster in ["none", "taxid"] else True)
-		parents, leaves, accessions, total_len = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file))
-		
+		leaves, accessions, total_len = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file))
+		parents = parents_tree(leaves, nodes)
+
 		if not parents[args.start_node]:
 			print("No children nodes found / invalid taxid -", str(args.start_node))
 			return
@@ -92,17 +89,17 @@ def main():
 			bin_len = total_len/float(args.bins) 
 
 		if args.pre_cluster != "none":
-			if args.pre_cluster=="taxid" or args.pre_cluster in set(ranks.values()):
-				parents, leaves = pre_cluster_by_rank(args.pre_cluster, nodes, ranks)
+			possible_ranks = set(ranks.values())
+			if args.pre_cluster=="taxid" or args.pre_cluster in possible_ranks:
+				leaves = pre_cluster(args.pre_cluster, leaves, nodes, ranks)
+				parents = parents_tree(leaves, nodes) #Re-calculate parents dict
 			else:
 				print("Rank not found: " + args.pre_cluster)
-				print("Possible ranks: " + ', '.join(set(ranks.values())))
+				print("Possible ranks: " + ', '.join(possible_ranks))
 				return
 		
-
 		# Run taxonomic structured bin packing
-		final_bins = ApproxSBP(args.start_node) 			## RECURSIVE
-		#final_bins = ApproxSBP_stack(args.start_node)		## STACK
+		final_bins = ApproxSBP(args.start_node, leaves, parents, bin_len) ## RECURSIVE
 
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
@@ -111,10 +108,10 @@ def main():
 				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 
 	elif args.which=="add":
-		nodes = read_nodes(args.nodes_file)
+		nodes, _ = read_nodes(args.nodes_file)
 		merged = read_merged(args.merged_file)
 		bins, lens = read_bins(args.bins_file, nodes, merged)
-		parents, leaves, accessions, total_len = read_input(args.input_file, 1, nodes, merged)
+		_, accessions, _ = read_input(args.input_file, 1, nodes, merged)
 		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 		for accession,(length,taxid) in sorted(accessions.items()):
 			t = taxid
@@ -136,7 +133,6 @@ def main():
 
 	elif args.which=="remove":
 		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
-
 		with open(args.bins_file,'r') as file:
 			for line in file:
 				accession = line.split('\t')[0]
@@ -151,7 +147,6 @@ def main():
 				if accession in r:
 					print(line, end='')
 
-
 def sum_tuple_ids(bin):
 	sum_length = 0
 	ids = []
@@ -163,7 +158,7 @@ def sum_tuple_ids(bin):
 # Input: list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Output: bin packed list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Returns multi-valued tuple: first [summed] length summed followed by the id[s]
-def bpck(d): 
+def bpck(d, bin_len): 
 	# Only one bin, no need to pack
 	if len(d)==1: return d
 	else:
@@ -175,22 +170,22 @@ def bpck(d):
 				ret.append((sum_length,*ids))
 		return ret
 
-def ApproxSBP(v):
+def ApproxSBP(v, leaves, parents, bin_len):
 	children = parents[v]
 	
 	# If it doesn't have any children it's a leaf and should return the packed sequences
-	if not children: return bpck(leaves[v])
+	if not children: return bpck(leaves[v], bin_len)
 		
 	# Recursively bin pack children
 	# Sort children to keep it more consistent with different versions of the taxonomy (new taxids)
 	ret = []
-	for child in sorted(children): ret.extend(ApproxSBP(child))
+	for child in sorted(children): ret.extend(ApproxSBP(child, leaves, parents, bin_len))
 
 	# if current node has sequences assigned to it (but it's not a leaf), add it to the current bin packing (it will first pack with its own children nodes)
 	## QUESTION: should I bin together those sequeneces or "distribute" along its children -- command: ret.update(leaves[v]) -- 
-	if leaves[v]: ret.extend(bpck(leaves[v]))
+	if leaves[v]: ret.extend(bpck(leaves[v], bin_len))
 
-	return bpck(ret)
+	return bpck(ret, bin_len)
 
 def read_nodes(nodes_file, pre_cluster):
 	# READ nodes -> fields (1:TAXID 2:PARENT_TAXID)
@@ -216,10 +211,10 @@ def read_merged(merged_file):
 	
 def read_input(input_file, start_node, nodes, merged):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
-	parents = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
 	leaves = defaultdict(list)
 	accessions = dict()
 	total_len = 0
+
 	with open(input_file,'r') as file:
 		for line in file:
 			fields = line.split('\t')
@@ -232,16 +227,37 @@ def read_input(input_file, start_node, nodes, merged):
 					continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
 				else:
 					taxid = merged[taxid] # Get new taxid from merged.dmp
-			leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
-			accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
+			
+			# Check if taxid is on the requested tree (under start node). 1=root, always on the tree
+			# do it just one for each taxid (once it was found on leaves means it was already checked)
+			if start_node==1 or taxid in leaves:
+				ontree=True
+			else:
+				ontree = False
+				lin_taxid = taxid
+				while lin_taxid!=1: #Check all taxids in the lineage
+					if lin_taxid==start_node: # If start node is found, is on the sub-tree
+						ontree=True
+						break
+					lin_taxid = nodes[lin_taxid]
+			
+			# If yes, add to dicts
+			if ontree:
+				total_len+=length # Account for seq. length
+				leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
+				accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 
-			while True: #Check all taxids in the lineage
-				if taxid==start_node: total_len+=length # Just account sequence to total when it's on the sub-tree
-				parents[nodes[taxid]].add(taxid) # Create parent:children structure only for used taxids
-				if taxid==1: break
-				taxid = nodes[taxid]
-				
-	return parents, leaves, accessions, total_len
+	return leaves, accessions, total_len
+
+def parents_tree(leaves, nodes):
+	# Define parent tree for faster lookup (set unique entries)
+	parents = defaultdict(set) 
+	for leaf_taxid in leaves.keys():
+		while True: #Check all taxids in the lineage
+			parents[nodes[leaf_taxid]].add(leaf_taxid) # Create parent:children structure only for used taxids
+			if leaf_taxid==1: break
+			leaf_taxid = nodes[leaf_taxid]
+	return parents
 
 def read_bins(bins_file, nodes, merged):
 	# READ bins -> fields (0:ACCESSION 1:BIN)
@@ -262,17 +278,14 @@ def read_bins(bins_file, nodes, merged):
 				try:
 					taxid = nodes[taxid]
 				except KeyError:
-					taxid = merged[taxid] # TODO log if not found on both
-					
+					taxid = merged[taxid] # TODO log if not found on both	
 	return bins, lens
 
-def pre_cluster_by_rank(rank_lock, nodes, ranks):
-	parents = defaultdict(set)
-	lineage_merge = defaultdict(set)
-
-	if rank_lock!="taxid":
+def pre_cluster(rank_lock, leaves, nodes, ranks):
+	if rank_lock!="taxid": # if pre-cluster is only by taxid, last step is needed
 		# For every leaf, identifies the lineage until the chosen rank
-		# If the lineage for the leaf taxid does not have the chosen rank, it will be skipped (and pre-cluster by its taxid later)
+		# If the lineage for the leaf taxid does not have the chosen rank, it will be skipped and pre-cluster by its taxid later
+		lineage_merge = defaultdict(set)
 		for leaf_taxid, leaf_seqs in leaves.items():
 			t = leaf_taxid
 			lin = []			
@@ -291,54 +304,12 @@ def pre_cluster_by_rank(rank_lock, nodes, ranks):
 					leaves[rank_lock_taxid].extend(leaves[child_taxid])
 					del leaves[child_taxid] # After moving it to the parent, remove it from leaves
 
-	
 	# Pre-cluster leaves by taxid (the ones without the chosen rank will be pre-cluster by its own taxid)
-	# If rank was chosen, all sequences are already under the parent taxid of the chosen rank
 	for leaf_taxid, leaf_seqs in leaves.items():
 		sum_length, ids = sum_tuple_ids(leaf_seqs)
 		leaves[leaf_taxid] = [(sum_length,*ids)]
 
-		# Re-build parent information
-		while True: #Check all taxids in the lineage
-			parents[nodes[leaf_taxid]].add(leaf_taxid) # Create parent:children structure only for used taxids
-			if leaf_taxid==1: break
-			leaf_taxid = nodes[leaf_taxid]
-		
-	# Return global variable, because python's namespace
-	# If a variable is ever assigned a new value inside the function, the variable is implicitly local
-	return parents, leaves
-
-#def ApproxSBP_stack(v):
-#	stack = [v]
-#	parent_stack = [1]
-#	bins = defaultdict(list)
-#	while stack:
-#		taxid = stack[-1]
-#		parent_taxid = parent_stack[-1]
-#
-#		# return to parent
-#		if taxid==parent_taxid:
-#			# if current node has sequences assigned to it (but it's not a leaf), add it to the current bin packing (it will first pack with its own children nodes)
-#			if leaves[taxid]: bins[parent_taxid].extend(bpck(leaves[taxid]))
-#			stack.pop()
-#			parent_stack.pop()
-#			# Add children packs to parent
-#			bins[parent_stack[-1]].extend(bpck(bins[parent_taxid]))
-#			del bins[parent_taxid]
-#			continue
-#			
-#		# Check if node has children
-#		children = parents[taxid]
-#		
-#		# If it doesn't have any children it's a leaf and should return the packed sequences
-#		if not children: 
-#			bins[parent_taxid].extend(bpck(leaves[taxid]))
-#			stack.pop()
-#		else:
-#			parent_stack.append(taxid)
-#			stack.extend(sorted(children,reverse=True)) # Sort children (reversed because it's in a stack) to keep it more consistent with different versions of the taxonomy (new taxids)
-#
-#	return bins[1]
+	return leaves
 	
 if __name__ == "__main__":
 	main()
