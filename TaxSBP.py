@@ -108,7 +108,7 @@ def main():
 				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 
 	elif args.which=="add":
-		nodes, _ = read_nodes(args.nodes_file)
+		nodes, _ = read_nodes(args.nodes_file, False)
 		merged = read_merged(args.merged_file)
 		bins, lens = read_bins(args.bins_file, nodes, merged)
 		_, accessions, _ = read_input(args.input_file, 1, nodes, merged)
