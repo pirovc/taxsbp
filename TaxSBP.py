@@ -40,9 +40,10 @@ def main():
 	create_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-m', required=False, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
-	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Number of bins (estimated by sequence lenghts). Default: 50 [Mutually exclusive -l]")
+	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	create_parser.add_argument('-r', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks or by their taxids, making sure they won't be splitted among bins [none,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxids, so they won't be splitted among bins [none,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-r', metavar='<rank_exclusive>', dest="rank_exclusive", type=str, default="none", help="Make bins rank/taxid exclusive, so bins won't have mixed ranks. When the chosen rank is not available for a organism, this option will make this organism taxid exclusive . [none,taxid,species,genus,...] Default: none")
 	
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
@@ -73,7 +74,7 @@ def main():
 		return 0
 
 	if args.which=="create":
-		nodes, ranks = read_nodes(args.nodes_file, False if args.pre_cluster in ["none", "taxid"] else True)
+		nodes, ranks = read_nodes(args.nodes_file, True if args.pre_cluster not in ["none", "taxid"] or args.rank_exclusive not in ["none", "taxid"] else False)
 		leaves, accessions, total_len = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file))
 		parents = parents_tree(leaves, nodes)
 
@@ -88,18 +89,33 @@ def main():
 			# Estimate bin len based on number of requested bins
 			bin_len = total_len/float(args.bins) 
 
+		# Check for valid rank
 		if args.pre_cluster != "none":
 			possible_ranks = set(ranks.values())
-			if args.pre_cluster=="taxid" or args.pre_cluster in possible_ranks:
-				leaves = pre_cluster(args.pre_cluster, leaves, nodes, ranks)
-				parents = parents_tree(leaves, nodes) #Re-calculate parents dict
-			else:
+			if args.pre_cluster!="taxid" and args.pre_cluster not in possible_ranks:
 				print("Rank not found: " + args.pre_cluster)
 				print("Possible ranks: " + ', '.join(possible_ranks))
 				return
-		
-		# Run taxonomic structured bin packing
-		final_bins = ApproxSBP(args.start_node, leaves, parents, bin_len) ## RECURSIVE
+		if args.rank_exclusive != "none":
+			possible_ranks = set(ranks.values())
+			if args.rank_exclusive!="taxid" and args.rank_exclusive not in possible_ranks:
+				print("Rank not found: " + args.rank_exclusive)
+				print("Possible ranks: " + ', '.join(possible_ranks))
+				return
+
+		# Pre-clustering
+		if args.pre_cluster != "none":
+			leaves = pre_cluster(args.pre_cluster, leaves, nodes, ranks)
+			parents = parents_tree(leaves, nodes) #Re-calculate parents dict
+
+		if args.rank_exclusive == "none":
+			# Run taxonomic structured bin packing for the whole tree
+			final_bins = ApproxSBP(args.start_node, leaves, parents, bin_len) ## RECURSIVE
+		else:
+			# Run taxonomic structured bin packing for each rank separetly
+			final_bins = []
+			for rank_taxid in get_unique_rank_taxids(args.rank_exclusive , leaves, nodes, ranks, args.start_node):
+				final_bins.extend(ApproxSBP(rank_taxid, leaves, parents, bin_len))
 
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
@@ -310,6 +326,19 @@ def pre_cluster(rank_lock, leaves, nodes, ranks):
 		leaves[leaf_taxid] = [(sum_length,*ids)]
 
 	return leaves
-	
+
+def get_unique_rank_taxids(rank_exclusive, leaves, nodes, ranks, start_node):
+	if rank_exclusive!="taxid":
+		unique_taxids = set()
+		for leaf_taxid in leaves.keys():
+			t = leaf_taxid
+			while ranks[t]!=rank_exclusive and t!=start_node: t = nodes[t]
+			# Add taxid of the found rank or the taxid of the leaf if rank is not present on the lineage	
+			unique_taxids.add(leaf_taxid if t==start_node else t) # add the leaf taxid
+			if t==start_node: print(leaf_taxid)
+		return unique_taxids
+	else:
+		return set(leaves.keys())
+
 if __name__ == "__main__":
 	main()
