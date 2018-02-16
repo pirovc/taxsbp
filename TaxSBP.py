@@ -335,7 +335,6 @@ def get_unique_rank_taxids(rank_exclusive, leaves, nodes, ranks, start_node):
 			while ranks[t]!=rank_exclusive and t!=start_node: t = nodes[t]
 			# Add taxid of the found rank or the taxid of the leaf if rank is not present on the lineage	
 			unique_taxids.add(leaf_taxid if t==start_node else t) # add the leaf taxid
-			if t==start_node: print(leaf_taxid)
 		return unique_taxids
 	else:
 		return set(leaves.keys())
