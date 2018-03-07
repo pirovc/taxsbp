@@ -112,11 +112,20 @@ def main():
 			# Run taxonomic structured bin packing for the whole tree
 			final_bins = ApproxSBP(args.start_node, leaves, parents, bin_len) ## RECURSIVE
 		else:
-			# Run taxonomic structured bin packing for each rank separetly
+			# Run taxonomic structured bin packing for each rank/taxid separetly
 			final_bins = []
-			for rank_taxid in get_unique_rank_taxids(args.rank_exclusive , leaves, nodes, ranks, args.start_node):
-				final_bins.extend(ApproxSBP(rank_taxid, leaves, parents, bin_len))
+			unique_rank_taxids, single_taxids = get_unique_rank_taxids(args.rank_exclusive, leaves, nodes, ranks, args.start_node)
+			
+			if unique_rank_taxids:
+				# clustering directly on the rank chosen, recursion required for children nodes
+				for unique_rank_taxid in unique_rank_taxids:
+					final_bins.extend(ApproxSBP(unique_rank_taxid, leaves, parents, bin_len))
 
+			if single_taxids:
+				# clustering directly on the taxid level, no recursion to children nodes necessary
+				for single_taxid in single_taxids:
+					final_bins.extend(bpck(leaves[single_taxid], bin_len))
+			
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
@@ -328,16 +337,19 @@ def pre_cluster(rank_lock, leaves, nodes, ranks):
 	return leaves
 
 def get_unique_rank_taxids(rank_exclusive, leaves, nodes, ranks, start_node):
+	unique_rank_taxids = set()
+	single_taxids = set()
 	if rank_exclusive!="taxid":
-		unique_taxids = set()
 		for leaf_taxid in leaves.keys():
 			t = leaf_taxid
-			while ranks[t]!=rank_exclusive and t!=start_node: t = nodes[t]
-			# Add taxid of the found rank or the taxid of the leaf if rank is not present on the lineage	
-			unique_taxids.add(leaf_taxid if t==start_node else t) # add the leaf taxid
-		return unique_taxids
+			while ranks[t]!=rank_exclusive and t!=start_node: t = nodes[t]	
+			if t==start_node: # If taxid was not found on the lineage, consider it as single
+				single_taxids.add(leaf_taxid)
+			else: # if it was found, add to unique rank list
+				unique_rank_taxids.add(t)
 	else:
-		return set(leaves.keys())
+		single_taxids = set(leaves.keys())
+	return unique_rank_taxids, single_taxids
 
 if __name__ == "__main__":
 	main()
