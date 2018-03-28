@@ -36,7 +36,7 @@ def main():
 	# create
 	create_parser = subparsers.add_parser('create', help='Create new bins')
 	create_parser.set_defaults(which='create')
-	create_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with sequence id, sequence length and taxonomic id")
+	create_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated with the fields: sequence id, sequence length, taxonomic id [, group]")
 	create_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-m', required=False, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
@@ -44,6 +44,7 @@ def main():
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
 	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxids, so they won't be splitted among bins [none,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('-r', metavar='<rank_exclusive>', dest="rank_exclusive", type=str, default="none", help="Make bins rank/taxid exclusive, so bins won't have mixed ranks. When the chosen rank is not available for a organism, this option will make this organism taxid exclusive . [none,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="If activated, TaxSBP will further classify sequences on a specialized level after the taxonomic id by the group (e.g. assembly accession, strain name, etc). Group should be provided in the input_file")
 	
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
@@ -75,7 +76,8 @@ def main():
 
 	if args.which=="create":
 		nodes, ranks = read_nodes(args.nodes_file, True if args.pre_cluster not in ["none", "taxid"] or args.rank_exclusive not in ["none", "taxid"] else False)
-		leaves, accessions, total_len = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file))
+		leaves, accessions, total_len, nodes = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file), args.use_group)
+		
 		parents = parents_tree(leaves, nodes)
 
 		if not parents[args.start_node]:
@@ -136,7 +138,7 @@ def main():
 		nodes, _ = read_nodes(args.nodes_file, False)
 		merged = read_merged(args.merged_file)
 		bins, lens = read_bins(args.bins_file, nodes, merged)
-		_, accessions, _ = read_input(args.input_file, 1, nodes, merged)
+		_, accessions, _ , _ = read_input(args.input_file, 1, nodes, merged)
 		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 		for accession,(length,taxid) in sorted(accessions.items()):
 			t = taxid
@@ -234,7 +236,7 @@ def read_merged(merged_file):
 				merged[int(old_taxid)] = int(new_taxid)
 	return merged
 	
-def read_input(input_file, start_node, nodes, merged):
+def read_input(input_file, start_node, nodes, merged, use_group):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
 	leaves = defaultdict(list)
 	accessions = dict()
@@ -247,6 +249,7 @@ def read_input(input_file, start_node, nodes, merged):
 			if accession=="na": continue # SKIP ENTRY WITH NO ACCESSION - TODO log
 			length = int(fields[1])
 			taxid = int(fields[2])
+		
 			if taxid not in nodes: 
 				if taxid not in merged: 
 					continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
@@ -269,10 +272,18 @@ def read_input(input_file, start_node, nodes, merged):
 			# If yes, add to dicts
 			if ontree:
 				total_len+=length # Account for seq. length
-				leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
-				accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
-
-	return leaves, accessions, total_len
+				if use_group:
+					leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
+					accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
+				else:
+					group = fields[3]
+					nodes[group] = taxid # Update nodes
+					leaves[group].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
+					accessions[accession] = (length,group) # Keep length and taxid for each accession (input file)
+			else:
+				pass # TODO log
+				
+	return leaves, accessions, total_len, nodes
 
 def parents_tree(leaves, nodes):
 	# Define parent tree for faster lookup (set unique entries)
