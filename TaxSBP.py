@@ -42,8 +42,8 @@ def main():
 	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
 	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length. Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxids, so they won't be splitted among bins [none,taxid,species,genus,...] Default: none")
-	create_parser.add_argument('-r', metavar='<rank_exclusive>', dest="rank_exclusive", type=str, default="none", help="Make bins rank/taxid exclusive, so bins won't have mixed ranks. When the chosen rank is not available for a organism, this option will make this organism taxid exclusive . [none,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxids, so they won't be splitted among bins [none,group,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-r', metavar='<rank_exclusive>', dest="rank_exclusive", type=str, default="none", help="Make bins rank/taxid exclusive, so bins won't have mixed ranks. When the chosen rank is not available for a organism, this option will make this organism taxid exclusive . [none,group,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="If activated, TaxSBP will further classify sequences on a specialized level after the taxonomic id by the group (e.g. assembly accession, strain name, etc). Group should be provided in the input_file")
 	
 	# add
@@ -76,12 +76,11 @@ def main():
 
 	if args.which=="create":
 		nodes, ranks = read_nodes(args.nodes_file, True if args.pre_cluster not in ["none", "taxid"] or args.rank_exclusive not in ["none", "taxid"] else False)
-		leaves, accessions, total_len, nodes = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file), args.use_group)
-		
+		leaves, accessions, total_len, nodes, ranks = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file), ranks, args.use_group)
 		parents = parents_tree(leaves, nodes)
 
 		if not parents[args.start_node]:
-			print("No children nodes found / invalid taxid -", str(args.start_node))
+			print("No children nodes found / invalid taxid - ", str(args.start_node))
 			return
 		
 		# Bin length (estimated from number of bins or directly)
@@ -131,14 +130,17 @@ def main():
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
-				# Output: accession, seq len, taxid, bin
-				print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
+				if args.use_group:
+					print(id, accessions[id][0], nodes[accessions[id][1]], accessions[id][1], binid, sep="\t")
+				else:
+					# Output: accession, seq len, taxid, bin
+					print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 
 	elif args.which=="add":
 		nodes, _ = read_nodes(args.nodes_file, False)
 		merged = read_merged(args.merged_file)
 		bins, lens = read_bins(args.bins_file, nodes, merged)
-		_, accessions, _ , _ = read_input(args.input_file, 1, nodes, merged)
+		_ , accessions , _ , _ , _ = read_input(args.input_file, 1, nodes, merged, {}, args.use_group)
 		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 		for accession,(length,taxid) in sorted(accessions.items()):
 			t = taxid
@@ -195,6 +197,7 @@ def bpck(d, bin_len):
 				# Convert the bin listed output to tuple format
 				sum_length, ids = sum_tuple_ids(bin)
 				ret.append((sum_length,*ids))
+
 		return ret
 
 def ApproxSBP(v, leaves, parents, bin_len):
@@ -204,9 +207,9 @@ def ApproxSBP(v, leaves, parents, bin_len):
 	if not children: return bpck(leaves[v], bin_len)
 		
 	# Recursively bin pack children
-	# Sort children to keep it more consistent with different versions of the taxonomy (new taxids)
+	# Sort children to keep it more consistent with different versions of the taxonomy (new taxids), str to for groups
 	ret = []
-	for child in sorted(children): ret.extend(ApproxSBP(child, leaves, parents, bin_len))
+	for child in sorted(children, key=str): ret.extend(ApproxSBP(child, leaves, parents, bin_len))
 
 	# if current node has sequences assigned to it (but it's not a leaf), add it to the current bin packing (it will first pack with its own children nodes)
 	## QUESTION: should I bin together those sequeneces or "distribute" along its children -- command: ret.update(leaves[v]) -- 
@@ -236,15 +239,15 @@ def read_merged(merged_file):
 				merged[int(old_taxid)] = int(new_taxid)
 	return merged
 	
-def read_input(input_file, start_node, nodes, merged, use_group):
-	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID)
+def read_input(input_file, start_node, nodes, merged, ranks, use_group):
+	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID [3:GROUP])
 	leaves = defaultdict(list)
 	accessions = dict()
 	total_len = 0
 
 	with open(input_file,'r') as file:
 		for line in file:
-			fields = line.split('\t')
+			fields = line.rstrip().split('\t')
 			accession = fields[0]
 			if accession=="na": continue # SKIP ENTRY WITH NO ACCESSION - TODO log
 			length = int(fields[1])
@@ -273,17 +276,18 @@ def read_input(input_file, start_node, nodes, merged, use_group):
 			if ontree:
 				total_len+=length # Account for seq. length
 				if use_group:
+					group = fields[3]
+					nodes[group] = taxid # Update nodes with new leaf
+					ranks[group] = "group"
+					leaves[group].append((length,accession)) # add group as leaf
+					accessions[accession] = (length,group) 
+				else:
 					leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 					accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
-				else:
-					group = fields[3]
-					nodes[group] = taxid # Update nodes
-					leaves[group].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
-					accessions[accession] = (length,group) # Keep length and taxid for each accession (input file)
 			else:
 				pass # TODO log
 				
-	return leaves, accessions, total_len, nodes
+	return leaves, accessions, total_len, nodes, ranks
 
 def parents_tree(leaves, nodes):
 	# Define parent tree for faster lookup (set unique entries)
