@@ -6,9 +6,12 @@ Implementation of the approximation algorithm for the hierarchically structured 
 
 Dependencies:
 -------------
+
+python >=3.5.0
+
 binpacking=1.3 (https://pypi.python.org/pypi/binpacking)
  
-	pip install binpacking
+	pip install binpacking==1.3
 
 or install manually into TaxSBP.py folder:
 	
@@ -46,6 +49,12 @@ Example:
 Further options:
 ----------------
 
+	# Create bins with exclusive species (sequences of the same species can go to several bins but bins are always species exclusive)
+	python3 TaxSBP.py create -f acc_len_txid.txt -n nodes.dmp -m merged.dmp -s 1 -b 20 -r species > bins.txt
+
+	# Create bins with pre-clustered species (one bin can have sequences from several species, but sequences of the same species are always on the same bin)
+	python3 TaxSBP.py create -f acc_len_txid.txt -n nodes.dmp -m merged.dmp -s 1 -b 20 -p species > bins.txt
+
 	# Add new sequences to existing bins (updating as few bins as possible)
 	python3 TaxSBP.py add -f ADDED_acc_len_txid.txt -i bins.txt -n nodes.dmp -m merged.dmp > added_bins.txt
 	
@@ -81,18 +90,31 @@ $ python3 TaxSBP.py create -h
 
 	usage: TaxSBP create [-h] -f <input_file> -n <nodes_file> [-m <merged_file>]
 	                     [-s <start_node>] [-b <bins>] [-l <bin_len>]
+	                     [-p <pre_cluster>] [-r <bin_exclusive>] [--use-group]
 
 	optional arguments:
-	  -h, --help        show this help message and exit
-	  -f <input_file>   Tab-separated file with sequence id, sequence length and
-	                    taxonomic id
-	  -n <nodes_file>   nodes.dmp from NCBI Taxonomy
-	  -m <merged_file>  merged.dmp from NCBI Taxonomy
-	  -s <start_node>   Start node taxonomic id. Default: 1 (root node)
-	  -b <bins>         Number of bins (estimated by sequence lenghts). Default:
-	                    50 [Mutually exclusive -l]
-	  -l <bin_len>      Maximum bin length. Use this parameter insted of -b to
-	                    define the number of bins [Mutually exclusive -b]
+	  -h, --help          show this help message and exit
+	  -f <input_file>     Tab-separated with the fields: sequence id, sequence
+	                      length, taxonomic id [, group]
+	  -n <nodes_file>     nodes.dmp from NCBI Taxonomy
+	  -m <merged_file>    merged.dmp from NCBI Taxonomy
+	  -s <start_node>     Start node taxonomic id. Default: 1 (root node)
+	  -b <bins>           Approximate number of bins (estimated by total
+	                      length/bin number). Default: 50 [Mutually exclusive -l]
+	  -l <bin_len>        Maximum bin length (in bp). Use this parameter insted of
+	                      -b to define the number of bins [Mutually exclusive -b]
+	  -p <pre_cluster>    Pre-cluster sequences into ranks/taxid/group, so they
+	                      won't be splitted among bins
+	                      [none,group,taxid,species,genus,...] Default: none
+	  -r <bin_exclusive>  Make bins rank/taxid/group exclusive, so bins won't have
+	                      mixed sequences. When the chosen rank is not present on
+	                      a sequence lineage, this sequence will be taxid
+	                      exclusive. [none,group,taxid,species,genus,...] Default:
+	                      none
+	  --use-group         If activated, TaxSBP will further cluster sequences on a
+	                      specialized level after the taxonomic id (e.g. assembly
+	                      accession, strain name, etc). The group should be
+	                      provided as an extra collumns in the input_file
 
 $ python3 TaxSBP.py add -h
 
