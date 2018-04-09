@@ -4,7 +4,7 @@ att=10
 
 retrieve_nucleotide_fasta_xml()
 {
-	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${1}&rettype=fasta&retmode=xml")"
+	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&id=${1}")"
 }
 
 for ACC in $1
@@ -13,7 +13,7 @@ do
 	for i in $(seq 1 ${att});
 	do
 		xml_out="$(retrieve_nucleotide_fasta_xml "${ACC}")"
-		taxid="$(echo "$xml_out" | grep -m 1 -oP '(?<=TSeq_taxid>)[^<]+')"
+		taxid="$(echo "$xml_out" | grep -m 1 -oP '(?<=Name="TaxId" Type="Integer">)[^<]+')"
 		# If taxid was found, break
 		if [[ ! -z "${taxid}" ]]; then break; fi;
 	done
@@ -24,7 +24,7 @@ do
 		continue
 	fi
 	# Extract sequence length 
-	len="$(echo "$xml_out" | grep -m 1 -oP '(?<=TSeq_length>)[^<]+')"
+	len="$(echo "$xml_out" | grep -m 1 -oP '(?<=Name="Length" Type="Integer">)[^<]+')"
 	
 	# Print output to STDOUT
 	echo ${ACC}$'\t'${len}$'\t'${taxid}
