@@ -67,7 +67,7 @@ def main():
 	list_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="List of sequence ids")
 	list_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	
-	parser.add_argument('-v', action='version', version='%(prog)s 0.06')
+	parser.add_argument('-v', action='version', version='%(prog)s 0.07')
 	args = parser.parse_args()
 
 	if len(sys.argv[1:])==0: # Print help calling script without parameters
@@ -131,7 +131,8 @@ def main():
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
 				if args.use_group:
-					print(id, accessions[id][0], nodes[accessions[id][1]], accessions[id][1], binid, sep="\t")
+					# Output: accession, seq len, taxid, bin, group
+					print(id, accessions[id][0], nodes[accessions[id][1]], binid, accessions[id][1], sep="\t")
 				else:
 					# Output: accession, seq len, taxid, bin
 					print(id, accessions[id][0], accessions[id][1], binid, sep="\t")

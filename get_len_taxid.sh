@@ -9,6 +9,8 @@ retrieve_nucleotide_fasta_xml()
 
 for ACC in $1
 do
+	xml_out=""
+	taxid=""
 	# Try to retrieve information
 	for i in $(seq 1 ${att});
 	do
@@ -20,7 +22,7 @@ do
 	# If taxid was not found, add to the error list and continue
 	if [[ -z "${taxid}" ]]; 
 	then 
-		nucl_error="${nucl_error}${ACC}"
+		error="${error} ${ACC}"
 		continue
 	fi
 	# Extract sequence length 
@@ -31,7 +33,9 @@ do
 done
 
 # Print errors to STDERR
-if [ ! -z "${nucl_error}" ]
+if [ ! -z "${error}" ]
 then
-	(>&2 echo "Problems retrieving nucleotide information for the following entries: "${nucl_error}) 
+	(>&2 echo "Failed to retrieve information: "${error})
+	exit 1
 fi
+exit 0
