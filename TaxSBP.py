@@ -44,7 +44,8 @@ def main():
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
 	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxid/group, so they won't be splitted among bins [none,group,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/group exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid exclusive. [none,group,taxid,species,genus,...] Default: none")
-	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="If activated, TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
+	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
+	create_parser.add_argument('--sorted-output', dest="sorted_output", default=False, action='store_true', help="Bins will be created based on the bin size in descending order")
 	
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
@@ -126,7 +127,9 @@ def main():
 				# clustering directly on the taxid level, no recursion to children nodes necessary
 				for single_taxid in single_taxids:
 					final_bins.extend(bpck(leaves[single_taxid], bin_len))
-			
+		
+		if args.sorted_output: final_bins.sort(key=lambda tup: tup[0], reverse=True)
+
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
