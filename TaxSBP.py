@@ -116,24 +116,37 @@ def main():
 		else:
 			# Run taxonomic structured bin packing for each rank/taxid separetly
 			final_bins = []
+			rank_taxid_leaf = {} # keep taxid of the chosen rank
 			unique_rank_taxids, single_taxids = get_unique_rank_taxids(args.bin_exclusive, leaves, nodes, ranks, args.start_node)
 			
 			if unique_rank_taxids:
 				# clustering directly on the rank chosen, recursion required for children nodes
 				for unique_rank_taxid in unique_rank_taxids:
-					final_bins.extend(ApproxSBP(unique_rank_taxid, leaves, parents, bin_len))
+					res = ApproxSBP(unique_rank_taxid, leaves, parents, bin_len)
+					for bin in res: #Save taxid of the chosen rank for output
+						for id in bin[1:]:
+							rank_taxid_leaf[id] = unique_rank_taxid
+					final_bins.extend(res)
 
 			if single_taxids:
 				# clustering directly on the taxid level, no recursion to children nodes necessary
 				for single_taxid in single_taxids:
-					final_bins.extend(bpck(leaves[single_taxid], bin_len))
-		
+					res = bpck(leaves[single_taxid], bin_len)
+					for bin in res: #Save taxid of the chosen rank for output
+						for id in bin[1:]:
+							rank_taxid_leaf[id] = single_taxid
+					final_bins.extend(res)
+
+
 		if args.sorted_output: final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
-				if args.use_group:
+				if args.bin_exclusive != "none" and not args.use_group:
+					# Output: accession, seq len, taxid, bin, group
+					print(id, accessions[id][0], accessions[id][1], binid, rank_taxid_leaf[id], sep="\t")
+				elif args.use_group:
 					# Output: accession, seq len, taxid, bin, group
 					print(id, accessions[id][0], nodes[accessions[id][1]], binid, accessions[id][1], sep="\t")
 				else:
