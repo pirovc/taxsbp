@@ -175,8 +175,11 @@ def main():
 					bin = min(d, key=d.get)
 				else:
 					bin = list(groups[t])[0]
-
+				# Add length count to the bin to be accounted in the next sequences
+				# (makes it distribute more evenly, but splits similar sequences and affects more bins)
+				if args.distribute: lens[bin]+=length 
 				print(accession, length, nodes[group], bin, group, sep="\t")
+
 		elif args.bin_exclusive != "none":
 			for accession,(length,group) in sorted(accessions.items()):
 				t = str(taxid_to_rank_taxid(group, args.bin_exclusive, nodes, ranks, 1))
@@ -190,13 +193,16 @@ def main():
 					bin = min(d, key=d.get)
 				else:
 					bin = list(groups[t])[0]
-
+				# Add length count to the bin to be accounted in the next sequences
+				# (makes it distribute more evenly, but splits similar sequences and affects more bins)
+				if args.distribute: lens[bin]+=length 
 				print(accession, length, nodes[group], bin, group, sep="\t")
+
 		else:
 			for accession,(length,taxid) in sorted(accessions.items()):
 				# If taxid of the entry is not directly assigned, look for LCA with assignment
 				t = taxid
-				while not bins[t] and t!=1: t = nodes[t] # int
+				while not bins[t] and t!=1: t = nodes[t]
 		
 				# If entry is assigned among several bins, chooses smallest to make the assignment
 				if len(bins[t])>1:
@@ -204,11 +210,11 @@ def main():
 					bin = min(d, key=d.get)
 				else:
 					bin = list(bins[t])[0]
-				print(accession, length, taxid, bin, sep="\t")
 
-		# Add length count to the bin to be accounted in the next sequences
-		# (makes it distribute more evenly, but splits similar sequences and affects more bins)
-		if args.distribute: lens[bin]+=length 
+				# Add length count to the bin to be accounted in the next sequences
+				# (makes it distribute more evenly, but splits similar sequences and affects more bins)
+				if args.distribute: lens[bin]+=length 
+				print(accession, length, taxid, bin, sep="\t")
 
 	elif args.which=="remove":
 		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
