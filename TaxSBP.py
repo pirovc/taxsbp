@@ -36,17 +36,17 @@ def main():
 	# create
 	create_parser = subparsers.add_parser('create', help='Create new bins')
 	create_parser.set_defaults(which='create')
-	create_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated with the fields: sequence id, sequence length, taxonomic id [, group]")
-	create_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
-	create_parser.add_argument('-m', required=False, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
-	create_parser.add_argument('-s', default=1, metavar='<start_node>', dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
-	create_parser.add_argument('-b', default=50, metavar='<bins>', dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
+	create_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id, sequence length, taxonomic id [, group]")
+	create_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
+	create_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
+	create_parser.add_argument('-s', metavar='<start_node>', default=1, dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
+	create_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
 	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxid/group, so they won't be splitted among bins [none,group,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/group exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid exclusive. [none,group,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
 	create_parser.add_argument('--sorted-output', dest="sorted_output", default=False, action='store_true', help="Bins will be created based on the bin size in descending order")
-	
+
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
@@ -54,6 +54,8 @@ def main():
 	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy (new sequences)")
 	add_parser.add_argument('-m', required=True, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
+	add_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/group exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid exclusive. [none,group,taxid,species,genus,...] Default: none")
+	add_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
 	add_parser.add_argument('--distribute', dest="distribute", default=False, action='store_true', help="Distribute newly added sequences among more bins. Without this option, TaxSBP will try to update as few bins as possible.")
 
 	# remove
@@ -76,7 +78,7 @@ def main():
 		return 0
 
 	if args.which=="create":
-		nodes, ranks = read_nodes(args.nodes_file, True if args.pre_cluster not in ["none", "taxid"] or args.bin_exclusive not in ["none", "taxid"] else False)
+		nodes, ranks = read_nodes(args.nodes_file)
 		leaves, accessions, total_len, nodes, ranks = read_input(args.input_file, args.start_node, nodes, read_merged(args.merged_file), ranks, args.use_group)
 		parents = parents_tree(leaves, nodes)
 
@@ -143,39 +145,70 @@ def main():
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
-				if args.bin_exclusive != "none" and not args.use_group:
-					# Output: accession, seq len, taxid, bin, group
-					print(id, accessions[id][0], accessions[id][1], binid, rank_taxid_leaf[id], sep="\t")
-				elif args.use_group:
-					# Output: accession, seq len, taxid, bin, group
+				if args.use_group:
+					# Output: accession, seq len, sequence taxid, bin, group
 					print(id, accessions[id][0], nodes[accessions[id][1]], binid, accessions[id][1], sep="\t")
+				elif args.bin_exclusive != "none": # by some taxonomic rank
+					# Output: accession, seq len, sequence taxid, bin, choosen rank taxid
+					print(id, accessions[id][0], accessions[id][1], binid, rank_taxid_leaf[id], sep="\t")
 				else:
-					# Output: accession, seq len, taxid, bin
+					# Output: accession, seq len, sequence taxid, bin
 					print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 
 	elif args.which=="add":
-		nodes, _ = read_nodes(args.nodes_file, False)
+		nodes, ranks = read_nodes(args.nodes_file)
 		merged = read_merged(args.merged_file)
-		bins, lens = read_bins(args.bins_file, nodes, merged)
-		_ , accessions , _ , _ , _ = read_input(args.input_file, 1, nodes, merged, {}, False)
-		# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
-		for accession,(length,taxid) in sorted(accessions.items()):
-			t = taxid
-			# If taxid of the entry is not directly assigned, look for LCA with assignment
-			while not bins[t] and t!=1: t = nodes[t]
+		bins, groups, lens = read_bins(args.bins_file, nodes, merged, True if args.use_group or args.bin_exclusive != "none" else False)
+		_, accessions, _, nodes, ranks = read_input(args.input_file, 1, nodes, merged, ranks, args.use_group)
+		
+		if args.use_group or args.bin_exclusive == "group":
+			# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
+			for accession,(length,group) in sorted(accessions.items()):
+				t = group
+				if group not in groups.keys():
+					print_log("[" + accession + "/" + group + "] skipped - group not found in previously generated bins")
+					continue
 
-			# If taxid is assigned among several bins, chooses smallest to make the assignment
-			if len(bins[t])>1:
-				d = {b:lens[b] for b in bins[t]}
-				bin = min(d, key=d.get)
-			else:
-				bin = list(bins[t])[0]
-			
-			# Add length count to the bin to be accounted in the next sequences
-			# (makes it distribute more evenly, but splits similar sequences and affects more bins)
-			if args.distribute: lens[bin]+=length 
+				# If entry is assigned among several bins, chooses smallest to make the assignment
+				if len(groups[t])>1:
+					d = {b:lens[b] for b in groups[t]}
+					bin = min(d, key=d.get)
+				else:
+					bin = list(groups[t])[0]
 
-			print(accession, length, taxid, bin, sep="\t")			
+				print(accession, length, nodes[group], bin, group, sep="\t")
+		elif args.bin_exclusive != "none":
+			for accession,(length,group) in sorted(accessions.items()):
+				t = str(taxid_to_rank_taxid(group, args.bin_exclusive, nodes, ranks, 1))
+				if t not in groups.keys():
+					print_log("[" + accession + "/" + t + "] skipped - taxid not found in previously generated bins")
+					continue
+
+				# If entry is assigned among several bins, chooses smallest to make the assignment
+				if len(groups[t])>1:
+					d = {b:lens[b] for b in groups[t]}
+					bin = min(d, key=d.get)
+				else:
+					bin = list(groups[t])[0]
+
+				print(accession, length, nodes[group], bin, group, sep="\t")
+		else:
+			for accession,(length,taxid) in sorted(accessions.items()):
+				# If taxid of the entry is not directly assigned, look for LCA with assignment
+				t = taxid
+				while not bins[t] and t!=1: t = nodes[t] # int
+		
+				# If entry is assigned among several bins, chooses smallest to make the assignment
+				if len(bins[t])>1:
+					d = {b:lens[b] for b in bins[t]}
+					bin = min(d, key=d.get)
+				else:
+					bin = list(bins[t])[0]
+				print(accession, length, taxid, bin, sep="\t")
+
+		# Add length count to the bin to be accounted in the next sequences
+		# (makes it distribute more evenly, but splits similar sequences and affects more bins)
+		if args.distribute: lens[bin]+=length 
 
 	elif args.which=="remove":
 		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
@@ -234,14 +267,14 @@ def ApproxSBP(v, leaves, parents, bin_len):
 
 	return bpck(ret, bin_len)
 
-def read_nodes(nodes_file, pre_cluster):
+def read_nodes(nodes_file):
 	# READ nodes -> fields (1:TAXID 2:PARENT_TAXID)
 	nodes = {}
-	ranks = {} # Only collect ranks in case pre_cluster is required
+	ranks = {}
 	with open(nodes_file,'r') as fnodes:
 		for line in fnodes:
 			taxid, parent_taxid, rank, _ = line.split('\t|\t',3)
-			if pre_cluster: ranks[int(taxid)] = rank
+			ranks[int(taxid)] = rank
 			nodes[int(taxid)] = int(parent_taxid)
 	nodes[1] = 0 #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
 	return nodes, ranks
@@ -266,13 +299,16 @@ def read_input(input_file, start_node, nodes, merged, ranks, use_group):
 		for line in file:
 			fields = line.rstrip().split('\t')
 			accession = fields[0]
-			if accession=="na": continue # SKIP ENTRY WITH NO ACCESSION - TODO log
+			if accession=="na": 
+				print_log("[" + "/".join(fields) + "] skipped - invalid sequence accession")
+				continue
 			length = int(fields[1])
 			taxid = int(fields[2])
 		
 			if taxid not in nodes: 
 				if taxid not in merged: 
-					continue # SKIP ENTRY WITH NO TAXONOMIC ASSIGNEMNT - TODO log
+					print_log("[" + "/".join(fields) + "] skipped - taxid not found in nodes/merged file")
+					continue
 				else:
 					taxid = merged[taxid] # Get new taxid from merged.dmp
 			
@@ -294,6 +330,10 @@ def read_input(input_file, start_node, nodes, merged, ranks, use_group):
 				total_len+=length # Account for seq. length
 				if use_group:
 					group = fields[3]
+					if group in nodes and nodes[group]!=taxid: # group specialization was found in more than one taxid (breaks the tree)
+						print_log("[" + "/".join(fields) + "] skipped - group assigned to multiple taxids, just first will taxid-group linking will be considered (" + group + "-" + str(nodes[group]) + ")")
+						continue
+					
 					nodes[group] = taxid # Update nodes with new leaf
 					ranks[group] = "group"
 					leaves[group].append((length,accession)) # add group as leaf
@@ -302,31 +342,43 @@ def read_input(input_file, start_node, nodes, merged, ranks, use_group):
 					leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 					accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 			else:
-				pass # TODO log
+				print_log("[" + "/".join(fields) + "] skipped - taxid not on the tree")
+				continue
 				
 	return leaves, accessions, total_len, nodes, ranks
 
-def read_bins(bins_file, nodes, merged):
+def print_log(text):
+	sys.stderr.write(text+"\n")
+
+def read_bins(bins_file, nodes, merged, grouped):
 	# READ bins -> fields (0:ACCESSION 1:BIN)
-	bins = defaultdict(set) # set cause it has faster lookup and it does not accept duplicated values (no need to check for that)
+	bins = defaultdict(set)
+	groups = defaultdict(set)
 	lens = defaultdict(int)
 	with open(bins_file,'r') as file:
 		for line in file:
-			fields = line.split('\t')
+			fields = line.rstrip().split('\t')
 			accession = fields[0]
 			length = int(fields[1])
 			taxid = int(fields[2])
 			bin = int(fields[3])
 			lens[bin]+=length
-			while True: #Check all taxids in the lineage
-				bins[taxid].add(bin) # Create parent:children structure only for used taxids
-				if taxid==1: break
-				# If taxid is not present on newer version of nodes.dmp, look for merged entry
-				try:
-					taxid = nodes[taxid]
-				except KeyError:
-					taxid = merged[taxid] # TODO log if not found on both	
-	return bins, lens
+			if grouped: 
+				groups[fields[4]].add(bin)
+			else:
+				while True: #Check all taxids in the lineage
+					bins[taxid].add(bin) # Create parent:children structure only for used taxids
+					if taxid==1: break
+					# If taxid is not present on newer version of nodes.dmp, look for merged entry
+					try:
+						taxid = nodes[taxid]
+					except KeyError:
+						try:
+							taxid = merged[taxid]
+						except KeyError:
+							print_log(str(taxid) + " taxid not found in nodes/merged file")
+							# TODO how to treat such case?
+	return bins, groups, lens
 
 def parents_tree(leaves, nodes):
 	# Define parent tree for faster lookup (set unique entries)
@@ -382,6 +434,14 @@ def get_unique_rank_taxids(bin_exclusive, leaves, nodes, ranks, start_node):
 	else:
 		single_taxids = set(leaves.keys())
 	return unique_rank_taxids, single_taxids
+
+def taxid_to_rank_taxid(taxid, rank, nodes, ranks, start_node):
+	t = taxid
+	while ranks[t]!=rank and t!=start_node: t = nodes[t]	
+	if t==start_node: # If taxid was not found on the lineage, consider it as single
+		return taxid
+	else:
+		return t
 
 if __name__ == "__main__":
 	main()
