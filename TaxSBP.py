@@ -42,18 +42,18 @@ def main():
 	create_parser.add_argument('-s', metavar='<start_node>', default=1, dest="start_node", type=int, help="Start node taxonomic id. Default: 1 (root node)")
 	create_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into ranks/taxid/group, so they won't be splitted among bins [none,group,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into rank/taxid/group, so they won't be splitted among bins [none,group,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/group exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid exclusive. [none,group,taxid,species,genus,...] Default: none")
-	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
+	create_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will cluster entries on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
 	create_parser.add_argument('--sorted-output', dest="sorted_output", default=False, action='store_true', help="Bins will be created based on the bin size in descending order")
 
 	# add
 	add_parser = subparsers.add_parser('add', help='Add sequences to existing bins')
 	add_parser.set_defaults(which='add')
-	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id")
+	add_parser.add_argument('-f', required=True, metavar='<input_file>', dest="input_file", help="Tab-separated file with the NEW sequence ids, sequence length and taxonomic id [, group]")
 	add_parser.add_argument('-i', required=True, metavar='<bins_file>', dest="bins_file", help="Previously generated bins")
 	add_parser.add_argument('-n', required=True, metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy (new sequences)")
-	add_parser.add_argument('-m', required=True, metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
+	add_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy (new sequences)")
 	add_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/group exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid exclusive. [none,group,taxid,species,genus,...] Default: none")
 	add_parser.add_argument('--use-group', dest="use_group", default=False, action='store_true', help="TaxSBP will further cluster sequences on a specialized level after the taxonomic id (e.g. assembly accession, strain name, etc). The group should be provided as an extra collumn in the input_file")
 	add_parser.add_argument('--distribute', dest="distribute", default=False, action='store_true', help="Distribute newly added sequences among more bins. Without this option, TaxSBP will try to update as few bins as possible.")
@@ -160,7 +160,7 @@ def main():
 		merged = read_merged(args.merged_file)
 		bins, groups, lens = read_bins(args.bins_file, nodes, merged, True if args.use_group or args.bin_exclusive != "none" else False)
 		_, accessions, _, nodes, ranks = read_input(args.input_file, 1, nodes, merged, ranks, args.use_group)
-		
+
 		if args.use_group or args.bin_exclusive == "group":
 			# Sort accessions for reproducible output (choice on multiple bins when adding sequence lens)
 			for accession,(length,group) in sorted(accessions.items()):
@@ -196,7 +196,7 @@ def main():
 				# Add length count to the bin to be accounted in the next sequences
 				# (makes it distribute more evenly, but splits similar sequences and affects more bins)
 				if args.distribute: lens[bin]+=length 
-				print(accession, length, nodes[group], bin, group, sep="\t")
+				print(accession, length, nodes[group], bin, t, sep="\t")
 
 		else:
 			for accession,(length,taxid) in sorted(accessions.items()):
@@ -337,7 +337,7 @@ def read_input(input_file, start_node, nodes, merged, ranks, use_group):
 				if use_group:
 					group = fields[3]
 					if group in nodes and nodes[group]!=taxid: # group specialization was found in more than one taxid (breaks the tree)
-						print_log("[" + "/".join(fields) + "] skipped - group assigned to multiple taxids, just first will taxid-group linking will be considered (" + group + "-" + str(nodes[group]) + ")")
+						print_log("[" + "/".join(fields) + "] skipped - group assigned to multiple taxids, just first taxid-group linking will be considered (" + group + "-" + str(nodes[group]) + ")")
 						continue
 					
 					nodes[group] = taxid # Update nodes with new leaf
