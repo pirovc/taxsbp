@@ -163,7 +163,7 @@ def main():
 		nodes, ranks = read_nodes(args.nodes_file)
 		merged = read_merged(args.merged_file)
 
-		bins, bins_taxid, lens = read_bins(args.bins_file, nodes, merged, True if args.bin_exclusive == "group" else False)
+		bins, bins_leaves, lens = read_bins(args.bins_file, nodes, merged, True if args.bin_exclusive == "group" else False)
 		_, accessions, _, nodes, ranks = read_input(args.input_file, 1, nodes, merged, ranks, True if args.bin_exclusive == "group" else False)
 
 		possible_ranks = set(ranks.values())
@@ -174,42 +174,30 @@ def main():
 
 		for accession,(length,taxid_group) in sorted(accessions.items()):
 			t = taxid_group
-			if args.bin_exclusive == "group":
-				if t not in bins.keys():
-					if args.new_bins: #create new bin
-						binno=len(lens)
-						bins[t].add(binno)
-						bins_taxid[binno].add(t)
-						lens[binno] = length
-					else:
-						print_log("[" + accession + "/" + t + "] skipped - group not found in previously generated bins")
-						continue
-			else:
-				if args.bin_exclusive != "none":
-					# find taxid of the bin exclusive rank
-					if args.bin_exclusive != "taxid": 
-						while ranks[t]!=args.bin_exclusive and t!=1: t = nodes[t] 
-						if t==1: t = taxid_group # choosen rank not on the lineage (root) reset to original taxid
-		
-					# if taxid is on the bins, check if it's unique among the selected bins (could be found in higher ranks)
-					if t in bins:
-						taxids_bins = set(txs for b in bins[t] for txs in bins_taxid[b])
-						if len(taxids_bins)>1 or taxids_bins.pop()!=t:
-							print_log("[" + accession + "/" + str(t) + "] skipped - taxid is not unique in previously generated bins")
+			if args.bin_exclusive != "none":
+				if args.bin_exclusive != "taxid": 
+					while ranks[t]!=args.bin_exclusive and t!=1: t = nodes[t] 
+					if t==1: t = taxid_group # choosen rank not on the lineage (root) reset to original taxid
+
+				if t not in bins_leaves:
+					if args.new_bins: 
+						# if the entry on the desired rank is already on the bins (but it's not a leaf), probably bins were generated in a different rank
+						# this avoids bins to be mixed if their lineages conflict
+						if t in bins:
+							print_log("[" + accession + "/" + str(t) + "] skipped - entry cannot be exclusive in previously generated bins")
 							continue
-					else: # if taxid is not on the bins
-						if args.new_bins:  #create new bin
+						else:
+							#create new bin
 							binno=len(lens)
 							bins[t].add(binno)
-							bins_taxid[binno].add(t)
+							bins_leaves.add(t)
 							lens[binno] = length
-						else:
-							print_log("[" + accession + "/" + str(t) + "] skipped - taxid does not have any " + args.bin_exclusive + " entry in previously generated bins")
-							continue
-
-				else: # no bin exclusive
-					while t not in bins and t!=1: t = nodes[t] # If taxid of the entry is not directly assigned, look for LCA with assignment
-
+					else:
+						print_log("[" + accession + "/" + str(t) + "] skipped - taxid or group not found in previously generated bins")
+						continue
+			else: # no bin exclusive
+				while t not in bins and t!=1: t = nodes[t] # If taxid of the entry is not directly assigned, look for LCA with assignment
+							
 			# If entry is assigned among several bins, chooses smallest to make the assignment
 			if len(bins[t])>1:
 				d = {b:lens[b] for b in bins[t]}
@@ -347,7 +335,7 @@ def read_input(input_file, start_node, nodes, merged, ranks, use_group):
 				if use_group:
 					group = fields[3]
 					if group in nodes and nodes[group]!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
-						print_log("[" + "/".join(fields) + "] skipped - group assigned to multiple taxids, just first taxid-group linking will be considered (" + group + "-" + str(nodes[group]) + ")")
+						print_log("[" + "/".join(fields) + "] skipped - group assigned to multiple taxids, just first taxid-group linking will be considered (" + str(nodes[group]) + ":" + group + ")")
 						continue
 					
 					nodes[group] = taxid # Update nodes with new leaf
@@ -368,7 +356,7 @@ def print_log(text):
 
 def read_bins(bins_file, nodes, merged, use_group):
 	bins = defaultdict(set)
-	bins_taxid = defaultdict(set)
+	bins_leaves = set()
 	lens = defaultdict(int)
 	with open(bins_file,'r') as file:
 		for line in file:
@@ -380,10 +368,11 @@ def read_bins(bins_file, nodes, merged, use_group):
 				bin = int(fields[4])
 				group = fields[3]
 				bins[group].add(bin)
+				bins_leaves.add(group)
 			else:
 				bin = int(fields[3])
+				bins_leaves.add(taxid)
 
-			bins_taxid[bin].add(taxid)
 			while True: #Check all taxids in the lineage
 				bins[taxid].add(bin) # Create parent:children structure only for used taxids
 				if taxid==1: break
@@ -395,11 +384,11 @@ def read_bins(bins_file, nodes, merged, use_group):
 						taxid = merged[taxid]
 					except KeyError:
 						print_log(str(taxid) + " taxid not found in nodes/merged file")
-						break
-						# TODO how to treat such case?
+						break # TODO how to treat such case?
+						
 			lens[bin]+=length
 
-	return bins, bins_taxid, lens
+	return bins, bins_leaves, lens
 
 def parents_tree(leaves, nodes):
 	# Define parent tree for faster lookup (set unique entries)
