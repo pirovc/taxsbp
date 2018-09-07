@@ -41,8 +41,8 @@ def main():
 	create_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	create_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	create_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
-	create_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
+	create_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	create_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	create_parser.add_argument('--sorted-output', dest="sorted_output", default=False, action='store_true', help="Bins will be created based on the bin size in descending order")
 	
@@ -54,8 +54,8 @@ def main():
 	add_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	add_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	add_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	add_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="none", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
-	add_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="none", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
+	add_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
+	add_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	add_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	add_parser.add_argument('-u', metavar='<update>', dest="update", type=str, default="", help="")
 	add_parser.add_argument('--sorted-output', dest="sorted_output", default=False, action='store_true', help="Bins will be created based on the bin size in descending order")
@@ -80,22 +80,28 @@ def main():
 		return 0
 
 	if args.which=="create" or args.which=="add":
+		accessions_bins=None
+		if args.which=="add": # read  bins
+			# leaves_bins are pre-clustered by binid (so they cannot be splited again)
+			leaves_bins, accessions_bins, binid_map, total_len_bins = read_bins(args.update, args.specialization, args.bin_exclusive)
+			number_of_bins = len(leaves_bins)
+
 		nodes, ranks = read_nodes(args.nodes_file)
 		merged = read_merged(args.merged_file)
-		leaves, accessions, total_len, nodes, ranks = read_input(args.input_file, nodes, merged, ranks, args.specialization)
+		leaves, accessions, total_len, nodes, ranks = read_input(args.input_file, nodes, merged, ranks, args.specialization, accessions_bins)
 
 		possible_ranks = set(ranks.values())
-		if args.pre_cluster != "none" and args.pre_cluster!="taxid" and args.pre_cluster not in possible_ranks:
+		if args.pre_cluster and args.pre_cluster!="taxid" and args.pre_cluster not in possible_ranks:
 			print("Rank for pre-clustering not found: " + args.pre_cluster)
 			print("Possible ranks: " + ', '.join(possible_ranks))
 			return
-		if args.bin_exclusive != "none" and args.bin_exclusive!="taxid" and args.bin_exclusive not in possible_ranks:
+		if args.bin_exclusive and args.bin_exclusive!="taxid" and args.bin_exclusive not in possible_ranks:
 			print("Rank for bin exclusive not found: " + args.bin_exclusive)
 			print("Possible ranks: " + ', '.join(possible_ranks))
 			return
 
 		# Pre-clustering
-		if args.pre_cluster != "none": leaves = pre_cluster(args.pre_cluster, leaves, nodes, ranks, args.specialization)
+		if args.pre_cluster: leaves = pre_cluster(args.pre_cluster, leaves, nodes, ranks, args.specialization)
 			
 		# build parent structure
 		parents = parents_tree(leaves, nodes)
@@ -108,9 +114,10 @@ def main():
 			bin_len = total_len/float(args.bins) 
 
 	if args.which=="create":
-		if args.bin_exclusive == "none": # Standard mode
+		rank_taxid_leaf = ""
+		if not args.bin_exclusive: # Standard mode
 			# Run taxonomic structured bin packing for the whole tree
-			final_bins = ApproxSBP(1, leaves, parents, bin_len) ## RECURSIVE
+			final_bins = ApproxSBP(1, leaves, parents, bin_len) # RECURSIVE
 		else: # Bin exclusive mode
 			final_bins, rank_taxid_leaf = cluster_bin_exclusive(args.bin_exclusive, leaves, nodes, parents, ranks, bin_len, args.specialization)
 
@@ -119,109 +126,80 @@ def main():
 		# Print resuls (by sequence)
 		for binid,bin in enumerate(final_bins):
 			for id in bin[1:]:
-				if args.specialization:
-					if args.bin_exclusive != "none" and args.bin_exclusive != args.specialization: # by some taxonomic rank
-						# Output: accession, seq len, bin exclusive taxid, group, bin
-						print(id, accessions[id][0], rank_taxid_leaf[id], accessions[id][1], binid, sep="\t")
-					else:
-						# Output: accession, seq len, sequence taxid, group, bin
-						print(id, accessions[id][0], nodes[accessions[id][1]], accessions[id][1], binid, sep="\t")
-				else:
-					if args.bin_exclusive != "none": # by some taxonomic rank
-						# Output: accession, seq len, bin exclusive taxid, bin
-						print(id, accessions[id][0], rank_taxid_leaf[id], binid, sep="\t")
-					else:
-						# Output: accession, seq len, sequence taxid, bin
-						print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
-
+				print_results(id, binid, accessions, rank_taxid_leaf, nodes, args.specialization, args.bin_exclusive)
 
 	elif args.which=="add":
-		leaves_bins, binid_map, binid_acc, accessions_bins, total_len_bins = read_bins(args.update, args.specialization)
-		number_of_bins = len(leaves_bins)
-		for acc in accessions:
-			if acc in accessions_bins:
-				print("REPEATED: " + acc)
+		rank_taxid_leaf = ""
+		if not args.bin_exclusive:
+			used_tree = {}
+			for leaf_taxid in set.union(*binid_map.values()):
+				t = leaf_taxid
+				while t!=1:
+					used_tree[t] = nodes[t]
+					t = nodes[t]
+					if t in used_tree: break # branch already in the dict
 
+			from LCA import LCA
+			L = LCA(used_tree)
+			for binid in list(leaves_bins.keys()):
+				if len(binid_map[binid])>1: # perform LCA
+					t = L(binid_map[binid].pop(),binid_map[binid].pop())
+					for i in range(len(binid_map[binid])): t = L(t, binid_map[binid].pop())
+				else:
+					t = binid_map[binid].pop() #only one taxid
+				leaves_bins[t].extend(leaves_bins.pop(binid))
 
-		if args.bin_exclusive == "none":
-			pass
-			# leaves_bins, binid_map, total_len_bins = read_bins(args.update, args.specialization)
-			# number_of_bins = len(leaves_bins)
-			
-			# leaves_bins get the LCA from leaves_bins instead of binid,
-			# con
-			# print(leaves_bins)
-			# print()
-			# for accession,(length,leaf) in sorted(accessions.items()):
-			# 	t = leaf
-			# 	while not map_binid[t] and t!=1: t = nodes[t]
-			# 	if t==1: # not found ,new bin
-			# 		binid = number_of_bins
-			# 		map_binid[binid].add(leaf)
-			# 		number_of_bins+=1
-			# 	else: # found, try to merge to some existing bin
-			# 		if len(map_binid[t])>1: # taxid/spec in more then one bin
-			# 			d = {b:leaves_bins[b][0][0] for b in map_binid[t]}
-			# 			binid = min(d, key=d.get) # select smallest bin
-			# 		else:
-			# 			binid = list(map_binid[t])[0]
+			# add bins to the new leaves to cluster together
+			for lca_taxid in leaves_bins:
+				leaves[lca_taxid].extend(leaves_bins[lca_taxid])
 
-			# 	leaves_bins[binid].append((length,accession))
-
-
-			# print(leaves_bins)
-			# print()
-
-			# # merge pre-clustered old leaves from bins and accessions on the new data
-			# for binid in leaves_bins.keys():
-			# 	leaves_bins[binid] = bpck(leaves_bins[binid], bin_len)
-
-			# print(leaves_bins)
-			# print()
-			# return 0
+			# redine parents			
+			parents = parents_tree(leaves, nodes)
+			final_bins = ApproxSBP(1, leaves, parents, bin_len) # RECURSIVE
 		else:
-			for binid in leaves_bins:
-				# get taxonomic assignment/specialization for the bin (here unique)
-				t = list(binid_map[binid])[0]
-				if t in leaves: # only for bin which can be affected
-					#extend current leaves with bins already grouped
-					leaves[t].extend(leaves_bins[binid])
+			# Convert leaves_bins[binid] to leaves_bins[taxid], merging bins with same taxid
+			for binid in list(leaves_bins.keys()):
+				t = list(binid_map[binid])[0] # get taxonomic assignment/specialization for the bin (unique for bin_exclusive)
+				leaves_bins[t].extend(leaves_bins.pop(binid))
 
-			accessions_bins.update(accessions)	
+			# if not working on leafs, define taxid for the bin_exclusive rank
+			if args.bin_exclusive!="taxid" and args.bin_exclusive!=args.specialization:
+				for taxid in list(leaves.keys()):
+					rank_taxid = get_rank_taxid(taxid, args.bin_exclusive, nodes, ranks)
+					if rank_taxid!=1 and rank_taxid!=taxid:
+						leaves[rank_taxid].extend(leaves.pop(taxid))
+
+			# add bins to the new leaves when possible
+			for taxid in list(leaves.keys()):
+				if taxid in leaves_bins:
+					leaves[taxid].extend(leaves_bins[taxid])
+			
+			# redine parents			
+			parents = parents_tree(leaves, nodes)			
 			final_bins, rank_taxid_leaf = cluster_bin_exclusive(args.bin_exclusive, leaves, nodes, parents, ranks, bin_len, args.specialization)
+			
+		if args.sorted_output: final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-			for bin in final_bins:
+		# print new sequences
+		for bin in final_bins:
+			# Define if it's a new bin or sequences were incorporated to existing bins
+			binid = ""
+			for id in bin[1:]: # check if bin belongs to old idons
+				# check if entry in cluster was in some bins (meaning it's a known bin)
+				if id in accessions_bins: 
+					binid = accessions_bins[id][2] # get old bin number
+					break
 
-				# If there are some accessions already with a bin, copy the same
-				binid = ""
-				for acc in bin[1:]:
-					if acc in binid_acc: 
-						binid = binid_acc[acc]
-						break
+			# no sequences in the bin were previously found, create new bin for the cluster
+			if not binid:
+				binid = number_of_bins
+				number_of_bins += 1
 
-				if not binid:
-					binid = number_of_bins
-					number_of_bins += 1
-
-				for id in bin[1:]:
-					if not id in accessions: continue
-
-					#print_results(id, binid, accessions_bins, rank_taxid_leaf, nodes, specialization, bin_exclusive)
-
-					if args.specialization:
-						if args.bin_exclusive != "none" and args.bin_exclusive != args.specialization: # by some taxonomic rank
-							# Output: accession, seq len, bin exclusive taxid, group, bin
-							print(id, accessions_bins[id][0], rank_taxid_leaf[id], accessions_bins[id][1], binid, sep="\t")
-						else:
-							# Output: accession, seq len, sequence taxid, group, bin
-							print(id, accessions_bins[id][0], nodes[accessions_bins[id][1]], accessions_bins[id][1], binid, sep="\t")
-					else:
-						if args.bin_exclusive != "none": # by some taxonomic rank
-							# Output: accession, seq len, bin exclusive taxid, bin
-							print(id, accessions_bins[id][0], rank_taxid_leaf[id], binid, sep="\t")
-						else:
-							# Output: accession, seq len, sequence taxid, bin
-							print(id, accessions_bins[id][0], accessions_bins[id][1], binid, sep="\t")
+			for id in bin[1:]:
+				# Just print new sequences, remove to print all affected
+				if id in accessions:
+					print_results(id, binid, accessions, rank_taxid_leaf, nodes, args.specialization, args.bin_exclusive)
+					
 
 	elif args.which=="remove":
 		r = set(line.split('\n')[0] for line in open(args.input_file,'r'))
@@ -302,14 +280,13 @@ def read_merged(merged_file):
 				merged[int(old_taxid)] = int(new_taxid)
 	return merged
 
-def read_bins(input_file, specialization):
+def read_bins(input_file, specialization, bin_exclusive):
 	# READ bins file -> fields (0:ACCESSION 1:LENGTH 2:TAXID [SPECIALIZATION] 3:BINID)
 	
-	leaves = defaultdict(list)
-	accessions = dict()
+	leaves_bins = defaultdict(list)
+	accessions_bins = dict()
 	binid_map = defaultdict(set)
-	binid_acc = {}
-	total_len = 0
+	total_len_bins = 0
 
 	with open(input_file,'r') as file:
 		for line in file:
@@ -321,21 +298,24 @@ def read_bins(input_file, specialization):
 				spec = fields[3]
 				binid = int(fields[4])
 			else:
-				spec = taxid # link taxid to specialization
 				binid = int(fields[3])
-			total_len+=length
-			
-			# when not bin exclusive, get lca from taxids
-			leaves[binid].append((length,accession)) # add as leaf
-			accessions[accession] = (length,spec) 
-			binid_acc[accession] = binid
-			binid_map[binid].add(spec)
+				
+			if bin_exclusive==specialization and (bin_exclusive or specialization):
+				accessions_bins[accession] = (length,spec,binid) 
+				binid_map[binid].add(spec)
+			else:
+				accessions_bins[accession] = (length,taxid,binid) 
+				binid_map[binid].add(taxid)
 
-	leaves = pre_cluster("binid", leaves, None, None, "binid")
+			leaves_bins[binid].append((length,accession)) # add as leaf
+			total_len_bins+=length
 
-	return leaves, binid_map, binid_acc, accessions, total_len
+	# pre-cluster bins by their binid, so they won't split
+	leaves_bins = pre_cluster("binid", leaves_bins, None, None, "binid")
 
-def read_input(input_file, nodes, merged, ranks, specialization):
+	return leaves_bins, accessions_bins, binid_map, total_len_bins
+
+def read_input(input_file, nodes, merged, ranks, specialization, accessions_bins=None):
 	# READ input file -> fields (0:ACCESSION 1:LENGTH 2:TAXID [3:SPECIALIZATION])
 	
 	leaves = defaultdict(list)
@@ -349,6 +329,10 @@ def read_input(input_file, nodes, merged, ranks, specialization):
 			if accession in accessions:
 				print_log("[" + accession + "] skipped - duplicated sequence accession")
 				continue
+			if accessions_bins:
+				if accession in accessions_bins:
+					print_log("[" + accession + "] skipped - duplicated sequence accession already clustered")
+					continue
 			length = int(fields[1])
 			taxid = int(fields[2])
 			if taxid not in nodes: 
@@ -361,22 +345,18 @@ def read_input(input_file, nodes, merged, ranks, specialization):
 			total_len+=length # Account for seq. length
 			if specialization:
 				spec = fields[3]
-
 				if spec in nodes and nodes[spec]!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
 					print_log("[" + "\t".join(fields) + "] skipped - group assigned to multiple taxids, just first taxid-group linking will be considered (" + str(nodes[spec]) + ":" + spec + ")")
 					continue
-
 				# update taxonomy
 				nodes[spec] = taxid # Update nodes with new leaf
 				ranks[spec] = specialization
-
 				leaves[spec].append((length,accession)) # add group as leaf
 				accessions[accession] = (length,spec) 
 			else:
 				leaves[taxid].append((length,accession)) # Keep length and accession for each taxid (multiple entries)
 				accessions[accession] = (length,taxid) # Keep length and taxid for each accession (input file)
 
-				
 	return leaves, accessions, total_len, nodes, ranks
 
 def parents_tree(leaves, nodes):
@@ -420,8 +400,6 @@ def pre_cluster(rank_lock, leaves, nodes, ranks, specialization):
 
 	return leaves
 
-
-
 def cluster_bin_exclusive(bin_exclusive, leaves, nodes, parents, ranks, bin_len, specialization):
 	# Run taxonomic structured bin packing for each rank/taxid separetly
 	final_bins = []
@@ -457,8 +435,7 @@ def get_unique_rank_taxids(bin_exclusive, leaves, nodes, ranks, specialization):
 	single_taxids = set()
 	if bin_exclusive!="taxid" and bin_exclusive!=specialization:
 		for leaf_taxid in leaves.keys():
-			t = leaf_taxid
-			while ranks[t]!=bin_exclusive and t!=1: t = nodes[t]	
+			t = get_rank_taxid(leaf_taxid, bin_exclusive, nodes, ranks)
 			if t==1: # If taxid was not found on the lineage, consider it as single
 				single_taxids.add(leaf_taxid)
 			else: # if it was found, add to unique rank list
@@ -468,6 +445,25 @@ def get_unique_rank_taxids(bin_exclusive, leaves, nodes, ranks, specialization):
 
 	return unique_rank_taxids, single_taxids
 
+def get_rank_taxid(taxid, rank, nodes, ranks):
+	while ranks[taxid]!=rank and taxid!=1: taxid = nodes[taxid]
+	return taxid
+
+def print_results(id, binid, accessions, rank_taxid_leaf, nodes, specialization, bin_exclusive):
+	if specialization:
+		if bin_exclusive and bin_exclusive != specialization: # by some taxonomic rank
+			# Output: accession, seq len, bin exclusive taxid, group, bin
+			print(id, accessions[id][0], rank_taxid_leaf[id], accessions[id][1], binid, sep="\t")
+		else:
+			# Output: accession, seq len, sequence taxid, group, bin
+			print(id, accessions[id][0], nodes[accessions[id][1]], accessions[id][1], binid, sep="\t")
+	else:
+		if bin_exclusive: # by some taxonomic rank
+			# Output: accession, seq len, bin exclusive taxid, bin
+			print(id, accessions[id][0], rank_taxid_leaf[id], binid, sep="\t")
+		else:
+			# Output: accession, seq len, sequence taxid, bin
+			print(id, accessions[id][0], accessions[id][1], binid, sep="\t")
 
 
 def print_log(text):
