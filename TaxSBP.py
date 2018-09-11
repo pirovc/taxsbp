@@ -129,6 +129,8 @@ def main():
 				print_results(id, binid, accessions, rank_taxid_leaf, nodes, args.specialization, args.bin_exclusive)
 
 	elif args.which=="add":
+
+
 		rank_taxid_leaf = ""
 		if not args.bin_exclusive:
 			used_tree = {}
@@ -243,7 +245,7 @@ def bpck(d, bin_len):
 
 def ApproxSBP(v, leaves, parents, bin_len):
 	children = parents[v]
-	
+
 	# If it doesn't have any children it's a leaf and should return the packed sequences
 	if not children: return bpck(leaves[v], bin_len)
 		
@@ -254,7 +256,7 @@ def ApproxSBP(v, leaves, parents, bin_len):
 
 	# if current node has sequences assigned to it (but it's not a leaf), add it to the current bin packing (it will first pack with its own children nodes)
 	## QUESTION: should I bin together those sequeneces or "distribute" along its children -- command: ret.update(leaves[v]) -- 
-	if leaves[v]: ret.extend(bpck(leaves[v], bin_len))
+	if v in leaves: ret.extend(bpck(leaves[v], bin_len))
 
 	return bpck(ret, bin_len)
 
