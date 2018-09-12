@@ -1,0 +1,38 @@
+1	|	1	|	no rank	|	|
+180	|	1	|	superkingdom	|	|
+181	|	1	|	superkingdom	|	|
+175	|	180	|	phylum	|	|
+176	|	180	|	phylum	|	|
+177	|	180	|	phylum	|	|
+178	|	181	|	phylum	|	|
+179	|	181	|	phylum	|	|
+999	|	181	|	phylum	|	|
+177	|	999	|	tribe	|	|
+165	|	175	|	genus	|	|
+166	|	175	|	genus	|	|
+167	|	175	|	genus	|	|
+168	|	176	|	genus	|	|
+169	|	177	|	genus	|	|
+170	|	178	|	genus	|	|
+171	|	178	|	genus	|	|
+172	|	179	|	genus	|	|
+173	|	179	|	genus	|	|
+174	|	179	|	genus	|	|
+150	|	165	|	species	|	|
+151	|	165	|	species	|	|
+152	|	165	|	species	|	|
+153	|	166	|	species	|	|
+154	|	166	|	species	|	|
+155	|	175	|	species	|	|
+156	|	167	|	species	|	|
+157	|	168	|	species	|	|
+158	|	169	|	species	|	|
+159	|	170	|	species	|	|
+160	|	171	|	species	|	|
+161	|	171	|	species	|	|
+162	|	172	|	species	|	|
+163	|	173	|	species	|	|
+164	|	174	|	species	|	|
+777	|	156	|	no rank	|	|
+888	|	152	|	subspecies	|	|
+999	|	175	|	no rank	|	|

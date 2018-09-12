@@ -67,47 +67,62 @@ def main():
 		taxnodes = TaxNodes(args.nodes_file, args.merged_file)
 
 		if args.pre_cluster and args.pre_cluster not in special_ranks and not taxnodes.has_rank(args.pre_cluster):
-			print("Rank for pre-clustering not found: " + args.pre_cluster)
-			print("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
+			print_log("Rank for pre-clustering not found: " + args.pre_cluster)
+			print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 			return
 		if args.bin_exclusive and args.bin_exclusive not in special_ranks and not taxnodes.has_rank(args.bin_exclusive):
-			print("Rank for bin exclusive not found: " + args.bin_exclusive)
-			print("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
+			print_log("Rank for bin exclusive not found: " + args.bin_exclusive)
+			print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 			return
 
 		# keep track of sequences read
 		sequences = {}
 
+		number_of_bins = 0
 		if args.update_file:
 			groups_bins = parse_input(args.update_file, taxnodes, args.specialization, sequences, True)
+			number_of_bins = len(groups_bins)
 			# join sequences in the bins
-			for group_bin in groups_bins.values(): group_bin.join()
-			# join pre-clustered groups by their LCA
-			lca_bins(groups_bins, taxnodes)
+			for binid, group_bin in groups_bins.items(): 
+				group_bin.join()
+				if args.bin_exclusive and len(group_bin.get_leaves())>1:
+					print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
+
+			# join pre-clustered groups by their LCA or unique leaf
+			set_leaf_bins(groups_bins, taxnodes)
+	
 		groups = parse_input(args.input_file, taxnodes, args.specialization, sequences, False)
 
-
-#		pprint(groups)
-#		print()
-
+		# merge bins to current groups
 		if args.update_file: 
-			for g in groups_bins: groups[g].merge(groups_bins[g]) 
+			# force new sequenecs to previous groups - do not allow inner clustering
+			#If bin_exclusive mode, convert taxids to rank exclusive taxids
+			# if args.bin_exclusive:
+			# 	for leaf in list(groups.keys()): 
+			# 		# get taxid for the bin_exclusive rank
+			# 		rank_taxid_node = taxnodes.get_rank_node(leaf, args.bin_exclusive)
+			# 		# If found, merge/create, otherwise keep as leaf
+			# 		if rank_taxid_node!=1: 
+			# 			groups[rank_taxid_node].merge(groups[leaf])
+			# 			del groups[leaf] 
+				
+			# for default mode, just add new sequences to the current bins
+			for g in groups_bins: groups[g].merge(groups_bins[g])
 
-#		pprint(groups)
-#		print()
-		
+
 		# Estimate bin len based on number of requested bins or direct by user
 		bin_len = args.bin_len if args.bin_len else sum([g.get_length() for g in groups.values()])/float(args.bins)
 
 		# Pre-clustering
 		if args.pre_cluster: pre_cluster(args.pre_cluster, groups, taxnodes, args.specialization)
 
+		# cluster
 		final_bins = cluster(groups, taxnodes, bin_len, args.bin_exclusive, args.specialization)
 
 		# sort by bin size
 		final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-		print_results(final_bins, taxnodes, sequences, args.bin_exclusive, args.specialization)
+		print_results(final_bins, taxnodes, sequences, args.bin_exclusive, args.specialization, number_of_bins)
 
 def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 	# parent->children structure for fast loookup, only for used taxids 
@@ -117,7 +132,6 @@ def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 	if bin_exclusive:
 		final_bins = []			
 		rank_taxids, orphan_taxids = get_rank_taxids(groups, taxnodes, bin_exclusive, specialization)
-
 		if rank_taxids:
 			# clustering directly on the rank chosen, recursion required for children nodes
 			for rank_taxid in rank_taxids:
@@ -173,7 +187,7 @@ def ApproxSBP(v, groups, children, bin_len):
 
 	return bpck(ret, bin_len)
 
-def lca_bins(groups_bins, taxnodes):
+def set_leaf_bins(groups_bins, taxnodes):
 
 	#set.union()
 	leaves = set()
@@ -222,6 +236,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 						print_log("[" + seqid + "] skipped - taxid not found in nodes/merged file")
 						continue
 					else:
+						print_log("[" + seqid + "] outdated taxid (old: "+str(taxid)+" -> new:"+str(m)+")")
 						taxid = m # Get updated version of the taxid from merged.dmp
 				
 				if specialization:
@@ -262,7 +277,7 @@ def pre_cluster(pre_cluster_rank, groups, taxnodes, specialization):
 		lineage_merge = defaultdict(set)
 		for leaf in groups:
 			t = leaf
-			lin = []			
+			lin = []	
 			while t!=1: # runs the tree until finds the chosen rank and save it on the target taxid (taxid from the rank chosen)
 				if taxnodes.get_rank(t)==pre_cluster_rank:
 					# union is necessary because many taxids will have the same path and all of them should be united in one taxid
@@ -299,24 +314,44 @@ def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 
 	return rank_taxids, orphan_taxids
 
-def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization):
+def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins):
 
-	for binid,bin in enumerate(final_bins):
-		for id in bin[1:]:
-			taxid=1
+	new_bins_count=number_of_bins # start bin count in the number of bins (0 if new cluster)
+	for bins in final_bins:
+		if number_of_bins: #if is updating
+			# check the sequences in the bin and check if any already has a binid
+			binid = set([sequences[seqid].binid for seqid in bins[1:] if sequences[seqid].binid is not None])
+			if not binid: #new bin
+				binid = new_bins_count 
+				new_bins_count+=1
+			elif len(binid)>1: # bins were merge, log
+				print_log(str(binid) + " bins were merged")
+				binid=binid.pop()
+			else: # new sequence joined a existing bin
+				binid=binid.pop()
+		else:
+			# create new binid for new bins
+			binid = new_bins_count 
+			new_bins_count+=1
+		
+		for seqid in bins[1:]:
 			
+			# if updating, skip sequences from bins
+			if number_of_bins and sequences[seqid].binid is not None: continue
+
+			# if bin_exclusive, recover bin_exclusive rank taxid
 			if bin_exclusive and bin_exclusive!="taxid" and bin_exclusive!=specialization:
-				taxid = taxnodes.get_rank_node(sequences[id].taxid, bin_exclusive)
-			
-			if taxid==1: 
-				taxid = sequences[id].taxid
+				taxid = taxnodes.get_rank_node(sequences[seqid].taxid, bin_exclusive)
+				if taxid==1: taxid = sequences[seqid].taxid
+			else: # otherwise, just use the input taxid
+				taxid = sequences[seqid].taxid
 
 			if specialization:
 				# Output: accession, seq len, sequence taxid, group, bin
-				print(id, sequences[id].seqlen, taxid, sequences[id].specialization, binid, sep="\t")
+				print(seqid, sequences[seqid].seqlen, taxid, sequences[seqid].specialization, binid, sep="\t")
 			else:
 				# Output: accession, seq len, sequence taxid, bin
-				print(id, sequences[id].seqlen, taxid, binid, sep="\t")
+				print(seqid, sequences[seqid].seqlen, taxid, binid, sep="\t")
 
 def print_log(text):
 	sys.stderr.write(text+"\n")
