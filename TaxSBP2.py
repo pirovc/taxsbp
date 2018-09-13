@@ -82,6 +82,7 @@ def main():
 		if args.update_file:
 			groups_bins = parse_input(args.update_file, taxnodes, args.specialization, sequences, True)
 			number_of_bins = len(groups_bins)
+			
 			# join sequences in the bins
 			for binid, group_bin in groups_bins.items(): 
 				group_bin.join()
@@ -95,20 +96,8 @@ def main():
 
 		# merge bins to current groups
 		if args.update_file: 
-			# force new sequenecs to previous groups - do not allow inner clustering
-			#If bin_exclusive mode, convert taxids to rank exclusive taxids
-			# if args.bin_exclusive:
-			# 	for leaf in list(groups.keys()): 
-			# 		# get taxid for the bin_exclusive rank
-			# 		rank_taxid_node = taxnodes.get_rank_node(leaf, args.bin_exclusive)
-			# 		# If found, merge/create, otherwise keep as leaf
-			# 		if rank_taxid_node!=1: 
-			# 			groups[rank_taxid_node].merge(groups[leaf])
-			# 			del groups[leaf] 
-				
-			# for default mode, just add new sequences to the current bins
+			#  add new sequences to the current bins
 			for g in groups_bins: groups[g].merge(groups_bins[g])
-
 
 		# Estimate bin len based on number of requested bins or direct by user
 		bin_len = args.bin_len if args.bin_len else sum([g.get_length() for g in groups.values()])/float(args.bins)
@@ -220,10 +209,10 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 				taxid = int(fields[2])
 				if specialization:
 					spec = fields[3]
-					binid = int(fields[4]) if bins else None
+					binid = int(fields[4]) if bins else None #int to spot possible error loading
 				else:
 					spec = None
-					binid = int(fields[3]) if bins else None
+					binid = int(fields[3]) if bins else None #int to spot possible error loading
 
 				# validations
 				if seqid in sequences:
@@ -242,7 +231,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 				if specialization:
 					s = taxnodes.get_parent(spec)
 					if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
-						print_log("[" + seqid + "] skipped - group assigned to multiple taxids, just first taxid-group linking will be considered (" + str(s) + ":" + spec + ")")
+						print_log("[" + seqid + "] skipped - specialization assigned to multiple taxids, just first taxid-group linking will be considered (" + str(s) + ":" + spec + ")")
 						continue
 					# update taxonomy
 					taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
@@ -325,7 +314,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 				binid = new_bins_count 
 				new_bins_count+=1
 			elif len(binid)>1: # bins were merge, log
-				print_log(str(binid) + " bins were merged")
+				print_log(str(binid) + " bins were merged. Update parameters differ from ones 	used to cluster.")
 				binid=binid.pop()
 			else: # new sequence joined a existing bin
 				binid=binid.pop()

@@ -8,7 +8,7 @@ seq6-species154-f	10	154	f
 seq7-species155-g	10	155	g
 seq8-species156-h	10	156	h
 seq9-species156-h	10	156	h	
-seq10-norank777-h	10	777	h
+seq10-norank777-h	10	777	x
 seq11-species157-i	10	157	i
 seq12-species158-j	10	158	j
 seq13-species159-k	10	159	k

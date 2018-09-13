@@ -1,0 +1,22 @@
+seq0-species150-genus165-phylum175-superkingdom180-a	10	150	a
+seq1-species150-genus165-phylum175-superkingdom180-b	10	150	b
+seq2-species151-genus165-phylum175-superkingdom180-c	10	151	c
+seq3-subspecies888-species152-genus165-phylum175-superkingdom180-d	10	888	d
+seq4-species153-genus166-phylum175-superkingdom180-e	10	153	e
+seq5-species153-genus166-phylum175-superkingdom180-e	10	153	e
+seq6-species154-genus166-phylum175-superkingdom180-f	10	154	f
+seq7-species155-phylum175-superkingdom180-g	10	155	g
+seq8-species156-genus167-phylum175-superkingdom180-h	10	156	h
+seq9-species156-genus167-phylum175-superkingdom180-h	10	156	h
+seq10-no rank777-species156-genus167-phylum175-superkingdom180-x	10	777	x
+seq11-species157-genus168-phylum176-superkingdom180-i	10	157	i
+seq12-species158-genus169-tribe177-no rank999-phylum175-superkingdom180-j	10	158	j
+seq13-species159-genus170-phylum178-superkingdom181-k	10	159	k
+seq14-species160-genus171-phylum178-superkingdom181-l	10	160	l
+seq15-species160-genus171-phylum178-superkingdom181-m	10	160	m
+seq16-species161-genus171-phylum178-superkingdom181-n	10	161	n
+seq17-species162-genus172-phylum179-superkingdom181-o	10	162	o
+seq18-species163-genus173-phylum179-superkingdom181-p	10	163	p
+seq19-species164-genus174-phylum179-superkingdom181-q	10	164	q
+seq20-phylum178-superkingdom181-r	10	178	r
+seq21-no rank999-phylum175-superkingdom180-s	10	999	s
