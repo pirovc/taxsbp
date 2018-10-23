@@ -26,6 +26,7 @@
 import binpacking
 import argparse
 import sys
+import math
 from collections import defaultdict
 from collections import OrderedDict
 from pprint import pprint
@@ -182,8 +183,6 @@ def ApproxSBP(v, groups, children, bin_len):
 	return bpck(ret, bin_len)
 
 def set_leaf_bins(groups_bins, taxnodes):
-
-	#set.union()
 	leaves = set()
 	for g in groups_bins.values(): leaves.update(g.get_leaves())
 	subtree = taxnodes.get_subtree(leaves)
@@ -267,17 +266,19 @@ def fragment_groups(groups, sequences, fragment_len, overlap_len):
 		frag_clusters = []
 		frag_group = Group()
 		for cluster in group.get_clusters():
-			for seqid, seqlen in cluster.get_seqlen().items(): # get as list to pop
-				nfrags = seqlen // (fragment_len+overlap_len) # number of fragments
+			for seqid, seqlen in cluster.get_seqlen().items():
+				nfrags = math.ceil(seqlen / fragment_len) # number of fragments
 				if nfrags:
 					fragid = ""
 					fraglen = 0
-					for i in range(nfrags+1):
+					for i in range(nfrags):
 						frag_start = 1 if i==0 else (fragment_len*i) + 1 # +1 to start counting sequence at 1
+						
 						if seqlen > (fragment_len*(i+1))+overlap_len:
 							fraglen = fragment_len+overlap_len
 						else:
 							fraglen = seqlen - (fragment_len*i)
+						
 						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
 						fragid=seqid+"/"+str(frag_start)+":"+str(frag_end)
 
