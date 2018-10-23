@@ -26,6 +26,7 @@
 import binpacking
 import argparse
 import sys
+import math
 from collections import defaultdict
 from collections import OrderedDict
 from pprint import pprint
@@ -48,6 +49,8 @@ def main():
 	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
 	cluster_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
+	cluster_parser.add_argument('-a', metavar='<fragment_len>', dest="fragment_len", type=int, default=0, help="Fragment sequences into pieces, output accession will be modified with positions: ACCESION/start:end")
+	cluster_parser.add_argument('-o', metavar='<overlap_len>', dest="overlap_len", type=int, default=0, help="Overlap length between fragments [Only valid with -a]")
 	cluster_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
 	cluster_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	cluster_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
@@ -93,6 +96,9 @@ def main():
 			set_leaf_bins(groups_bins, taxnodes)
 	
 		groups = parse_input(args.input_file, taxnodes, args.specialization, sequences, False)
+
+		# fragment input
+		if args.fragment_len: fragment_groups(groups, sequences, args.fragment_len, args.overlap_len)
 
 		# merge bins to current groups
 		if args.update_file: 
@@ -177,8 +183,6 @@ def ApproxSBP(v, groups, children, bin_len):
 	return bpck(ret, bin_len)
 
 def set_leaf_bins(groups_bins, taxnodes):
-
-	#set.union()
 	leaves = set()
 	for g in groups_bins.values(): leaves.update(g.get_leaves())
 	subtree = taxnodes.get_subtree(leaves)
@@ -236,8 +240,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 					# update taxonomy
 					taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
 					
-
-				# for internal check internal check
+				# for internal check
 				sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
 
 				# Define leaf
@@ -249,13 +252,47 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 					leaf = taxid
 
 				# Add sequence as cluster and relative leaf nodes
-				groups[leaf].add_cluster(spec if specialization else taxid,seqid,seqlen)
+				groups[leaf].add_cluster(spec if specialization else taxid, seqid,seqlen)
 
 			except Exception as e:
 				print_log(e)
 
 	return groups
 
+def fragment_groups(groups, sequences, fragment_len, overlap_len):
+	# it will separate into clusters sequences already together
+
+	for leaf,group in groups.items():
+		frag_clusters = []
+		frag_group = Group()
+		for cluster in group.get_clusters():
+			for seqid, seqlen in cluster.get_seqlen().items():
+				nfrags = math.ceil(seqlen / fragment_len) # number of fragments
+				if nfrags:
+					fragid = ""
+					fraglen = 0
+					for i in range(nfrags):
+						frag_start = 1 if i==0 else (fragment_len*i) + 1 # +1 to start counting sequence at 1
+						
+						if seqlen > (fragment_len*(i+1))+overlap_len:
+							fraglen = fragment_len+overlap_len
+						else:
+							fraglen = seqlen - (fragment_len*i)
+						
+						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
+						fragid=seqid+"/"+str(frag_start)+":"+str(frag_end)
+
+						frag_clusters.append(Cluster(fragid,fraglen)) # create cluster for fragment
+						# update sequence entry
+						sequences[fragid] = Sequence(fraglen, sequences[seqid].taxid, sequences[seqid].specialization, sequences[seqid].binid)
+				else:
+					fraglen=seqlen
+					fragid=seqid+"/1:"+str(seqlen)
+					frag_clusters.append(Cluster(fragid,fraglen))
+					sequences[fragid] = Sequence(fraglen, sequences[seqid].taxid, sequences[seqid].specialization, sequences[seqid].binid)
+			del sequences[seqid] # delete from sequences
+		frag_group.add_clusters(group.get_leaves(), frag_clusters)
+		groups[leaf] = frag_group #overwrite group
 
 def pre_cluster(pre_cluster_rank, groups, taxnodes, specialization):	
 	# if pre-cluster is only by taxid or specialization (leaves), only last step is needed
@@ -314,7 +351,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 				binid = new_bins_count 
 				new_bins_count+=1
 			elif len(binid)>1: # bins were merge, log
-				print_log(str(binid) + " bins were merged. Update parameters differ from ones 	used to cluster.")
+				print_log(str(binid) + " bins were merged. Update parameters differ from ones used to cluster.")
 				binid=binid.pop()
 			else: # new sequence joined a existing bin
 				binid=binid.pop()

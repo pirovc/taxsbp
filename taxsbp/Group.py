@@ -10,8 +10,8 @@ class Group:
 		self.leaves.add(leaf_node)
 		self.elements.append(Cluster(seqid,seqlen))
 
-	def add_clusters(self, leaf_node, clusters):
-		self.leaves.update(leaf_node)
+	def add_clusters(self, leaf_nodes, clusters):
+		self.leaves.update(leaf_nodes)
 		self.elements.extend(clusters)
 
 	def get_leaves(self):
@@ -32,7 +32,7 @@ class Group:
 	def join(self):
 		final_cluster = Cluster()
 		for c in self.elements:
-			final_cluster.update_cluster(c)
+			final_cluster.update(c)
 		self.elements = [final_cluster]
 
 	def merge(self, group):
