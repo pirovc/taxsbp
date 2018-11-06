@@ -37,7 +37,7 @@ from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
 from scripts.LCA import LCA
 
-def main():
+def main(_args):
 	parser = argparse.ArgumentParser(prog='TaxSBP',conflict_handler="resolve")
 	subparsers = parser.add_subparsers()
 
@@ -57,9 +57,9 @@ def main():
 	cluster_parser.add_argument('-u', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
 
 	parser.add_argument('-v', action='version', version='%(prog)s 0.1')
-	args = parser.parse_args()
+	args = parser.parse_args(_args)
 
-	if len(sys.argv[1:])==0: # Print help calling script without parameters
+	if len(_args)==0: # Print help calling script without parameters
 		parser.print_help() 
 		return 0
 
@@ -383,4 +383,4 @@ def print_log(text):
 	sys.stderr.write(text+"\n")
 
 if __name__ == "__main__":
-	main()
+	main(sys.argv[1:])

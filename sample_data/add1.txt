@@ -1,1 +1,0 @@
-seq99-species150-genus165-phylum175-superkingdom180-z	10	150	z
