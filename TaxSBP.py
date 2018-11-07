@@ -268,16 +268,19 @@ def fragment_groups(groups, sequences, fragment_len, overlap_len):
 		for cluster in group.get_clusters():
 			for seqid, seqlen in cluster.get_seqlen().items():
 				nfrags = math.ceil(seqlen / fragment_len) # number of fragments
+
 				if nfrags:
 					fragid = ""
 					fraglen = 0
-					for i in range(nfrags):
-						frag_start = 1 if i==0 else (fragment_len*i) + 1 # +1 to start counting sequence at 1
+					for i in range(nfrags): #range i=0..nfrags
+						frag_start = (fragment_len*i) + 1 # +1 to start counting sequence at 1
 						
-						if seqlen > (fragment_len*(i+1))+overlap_len:
-							fraglen = fragment_len+overlap_len
+						# if current fragment + overlap is smaller than the total seqlen
+						if (fragment_len*(i+1))+overlap_len <= seqlen:
+							fraglen = fragment_len+overlap_len # full fragment
 						else:
-							fraglen = seqlen - (fragment_len*i)
+							fraglen = seqlen - (fragment_len*i) # shorted last fragment
+							if fraglen<=overlap_len: continue # if last fragment is smaller than overlap (already covered in the last fragment), skip
 						
 						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
 						fragid=seqid+"/"+str(frag_start)+":"+str(frag_end)

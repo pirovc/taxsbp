@@ -19,9 +19,9 @@ def parse_nodes_ranks(nodes_file):
 
 nodes, children, ranks = parse_nodes_ranks(sys.argv[1])
 
-n_of_sequences = 10
-min_len = 100
-max_len = 2000
+n_of_sequences = 50
+min_len = 1000
+max_len = 5000
 specialization = True
 selected_ranks = ['b','c', 'd', 'e', 'f']
 
