@@ -168,7 +168,7 @@ def bpck(d, bin_len):
 def ApproxSBP(v, groups, children, bin_len):
 	ch = children[v]
 	
-	# If it doesn't have any children it's a leaf and should return the packed sequences
+        # If it doesn't have any children it's a leaf and should return the packed sequences
 	if not ch: return bpck(groups[v].get_clusters_bpck(), bin_len)
 		
 	# Recursively bin pack children
@@ -280,7 +280,7 @@ def fragment_groups(groups, sequences, fragment_len, overlap_len):
 							fraglen = fragment_len+overlap_len # full fragment
 						else:
 							fraglen = seqlen - (fragment_len*i) # shorted last fragment
-							if fraglen<=overlap_len: continue # if last fragment is smaller than overlap (already covered in the last fragment), skip
+							if fraglen<=overlap_len and i>=1: continue # if last fragment is smaller than overlap and its not the first (fraglen<overlap_len)already covered in the last fragment), skip
 						
 						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
 						fragid=seqid+"/"+str(frag_start)+":"+str(frag_end)
