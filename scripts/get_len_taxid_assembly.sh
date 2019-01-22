@@ -1,6 +1,6 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
-att=100
+att=10
 if [ ! -z "${NCBI_API_KEY}" ]
 then
 	api_key="&api_key=${NCBI_API_KEY}"
@@ -46,7 +46,7 @@ do
 		if [[ -z "${assembly_accession}" ]]; 
 		then 
 			error="${error} ${ACC}"
-			continue
+			assembly_accession=${ACC}
 		fi
 
 		# Print output to STDOUT (replacing space for tabs)
