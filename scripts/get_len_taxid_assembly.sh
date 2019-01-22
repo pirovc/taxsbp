@@ -4,7 +4,6 @@ att=10
 if [ ! -z "${NCBI_API_KEY}" ]
 then
 	api_key="&api_key=${NCBI_API_KEY}"
-	echo ${api_key}
 fi
 
 retrieve_assembly_uid_xml()
