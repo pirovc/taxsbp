@@ -1,10 +1,14 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
 att=10
+if [ ! -z "${NCBI_API_KEY}" ]
+then
+	api_key="&api_key=${NCBI_API_KEY}"
+fi
 
 retrieve_nucleotide_fasta_xml()
 {
-	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&id=${1}")"
+	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&id=${1}${2}")"
 }
 
 for ACC in $1
@@ -14,7 +18,7 @@ do
 	# Try to retrieve information
 	for i in $(seq 1 ${att});
 	do
-		xml_out="$(retrieve_nucleotide_fasta_xml "${ACC}")"
+		xml_out="$(retrieve_nucleotide_fasta_xml "${ACC}" "${api_key}")"
 		taxid="$(echo "$xml_out" | grep -m 1 -oP '(?<=Name="TaxId" Type="Integer">)[^<]+')"
 		# If taxid was found, break
 		if [[ ! -z "${taxid}" ]]; then break; fi;

@@ -1,15 +1,20 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
-att=10
+att=100
+if [ ! -z "${NCBI_API_KEY}" ]
+then
+	api_key="&api_key=${NCBI_API_KEY}"
+	echo ${api_key}
+fi
 
 retrieve_assembly_uid_xml()
 {
-	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=assembly&term=${1}")"
+	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=assembly&term=${1}${2}")"
 }
 
 retrieve_assembly_accession_xml()
 {
-	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=assembly&id=${1}")"
+	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=assembly&id=${1}${2}")"
 }
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -26,12 +31,12 @@ do
 	else
 		for i in $(seq 1 ${att});
 		do
-			xml_out="$(retrieve_assembly_uid_xml "${ACC}")"
+			xml_out="$(retrieve_assembly_uid_xml "${ACC}" "${api_key}")"
 			assembly_uid="$(echo "$xml_out" | grep -m 1 -oP '(?<=<Id>)[^<]+')"
 			# If assembly_uid was not found, try again
 			if [[ -z "${assembly_uid}" ]]; then continue; fi;
 		
-			xml_out="$(retrieve_assembly_accession_xml "${assembly_uid}")"
+			xml_out="$(retrieve_assembly_accession_xml "${assembly_uid}" "${api_key}")"
 			assembly_accession="$(echo "$xml_out" | grep -m 1 -oP '(?<=<AssemblyAccession>)[^<]+')"
 			# If taxid was found, break
 			if [[ -z "${assembly_accession}" ]]; then continue; fi;
