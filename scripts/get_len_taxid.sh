@@ -55,7 +55,7 @@ do
 	done
 
 	# If taxid or len was not found, add to the error list and continue
-	if [[ -z "${taxid}" || -z "${len}" ]]; 
+	if [[ -z "${taxid}" ]]; 
 	then 
 		error="${error} ${ACC}"
 		continue
@@ -68,7 +68,7 @@ done
 # Print errors to STDERR
 if [ ! -z "${error}" ]
 then
-	(>&2 echo "Failed to retrieve information: "${error})
+	(>&2 echo "Failed to get taxid and sequence length: "${error})
 	exit 1
 fi
 exit 0

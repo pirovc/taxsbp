@@ -23,9 +23,9 @@ do
 	assembly_uid=""
 	assembly_accession=""
 	len_taxid="$("${SCRIPTPATH}"/get_len_taxid.sh "${ACC}" 2> /dev/null)"
-	if [ $? -ne 0 ]; #If successfuly retrieve len and taxid
+	if [ $? -ne 0 ]; #If failed to retrieve taxid
 	then
-		error="${error} ${ACC}"
+		(>&2 echo "Failed to get taxid and sequence length: "${ACC})
 		continue
 	else
 		for i in $(seq 1 ${att});
@@ -56,7 +56,7 @@ done
 # Print errors to STDERR
 if [ ! -z "${error}" ]
 then
-	(>&2 echo "Failed to retrieve information: "${error})
+	(>&2 echo "Failed to get assembly accession: "${error})
 	exit 1
 fi
 exit 0
