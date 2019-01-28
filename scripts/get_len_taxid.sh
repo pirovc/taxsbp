@@ -82,8 +82,10 @@ do
 			else
 				len_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_length>)[^<]+')"
 				taxid_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_taxid>)[^<]+')"
-				out_fetch="$(paste <(echo "${acc_fetch}") <(echo "${len_fetch}") <(echo "${taxid_fetch}") --delimiters '\t')"
-				out="${out}"$'\n'"${out_fetch}"
+				if [[ ! -z "${out}" ]]; then 
+					out="${out}"$'\n'
+				fi
+				out="${out}$(paste <(echo "${acc_fetch}") <(echo "${len_fetch}") <(echo "${taxid_fetch}") --delimiters '\t')"
 				break
 			fi
 		done
@@ -162,7 +164,6 @@ do
 			# if there are less output lines than input accessions, get accessions missing (or return is empty)
 			if [[ "$(echo "${uid_summary_assembly}" | wc -l)" -lt "$(echo "${uid_link}" | wc -l)" ||  -z "${uid_summary_assembly}" ]];
 			then
-				echo "here 2"
 				uid_missing="$(diff --changed-group-format='%>' --unchanged-group-format='' <(echo "${uid_summary_assembly}") <(echo "$uid_link"))"
 				acc_missing="$(join -1 1 -2 2 <(echo "${uid_missing}" | sort | uniq) <(echo "${acc_uid_link}" | sort -k 2,2) -t$'\t' -o "2.1")"
 				failed_assembly="${failed_assembly}${acc_missing}\n"
@@ -173,7 +174,7 @@ do
 		# link uids (not found for esummary)
 		acc_assembly="$(join -1 2 -2 1 <(echo "${acc_uid_link}" | sort -k 2,2) <(echo "${uid_assemblyaccession_summary_assembly}" | sort -k 1,1 | uniq) -t$'\t' -o "1.1,2.2" -a 1 -e NOT_FOUND)"
 		# print final (not found for elink)
-		echo "$(join -1 1 -2 1 <(echo "${out}" | sort -k 1,1) <(echo "${acc_assembly}" | sort -k 1,1) -t$'\t' -o "1.1,1.2,1.3,2.2" -a 1 -e NOT_FOUND)"
+		echo "$(join -1 1 -2 1 <(echo "${out}" | sort -k 1,1) <(echo "${acc_assembly}" | sort -k 1,1) -t$'\t' -o "0,1.2,1.3,2.2" -a 1 -e NOT_FOUND)"
 	fi
 
 	# read new batch
