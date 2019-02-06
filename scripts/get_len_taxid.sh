@@ -3,16 +3,6 @@
 att=10
 batch=200
 
-if [ ! -z "${NCBI_API_KEY}" ]
-then
-	api_key="&api_key=${NCBI_API_KEY}"
-fi
-
-if [ ! -z "${GET_ASSEMBLY_ACCESSION}" ]
-then
-	assembly_accession="true"
-fi
-
 retrieve_summary_xml()
 {
 	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&id=${1}${2}")"
@@ -39,8 +29,43 @@ get_lines()
 	echo "$(sed -n "${2},$((${2}+${3}-1))p" ${1})"
 }
 
+function showhelp {
+	echo "get_len_taxid.sh by Vitor C. Piro (vitorpiro@gmail.com, http://github.com/pirovc)"
+	echo
+	echo $' -i input_file'
+	echo $' -n ncbi_api_key'
+	echo $' -a get_assembly_accession'
+}
+
+input_file=""
+ncbi_api_key=""
+get_assembly_accession=0
+
+OPTIND=1 # Reset getopts
+while getopts "i:n:a" opt; do
+  case ${opt} in
+    i) input_file=${OPTARG} ;;
+    n) ncbi_api_key=${OPTARG} ;;
+	a) get_assembly_accession=1 ;;
+    h|\?) showhelp; exit 1 ;;
+    :) echo "Option -${OPTARG} requires an argument." >&2; exit 1 ;;
+  esac
+done
+if [ ${OPTIND} -eq 1 ]; then showhelp; exit 1; fi
+shift $((OPTIND-1))
+[ "$1" = "--" ] && shift
+
+# test if ncbi api key is valid
+if [[ ! -z "${ncbi_api_key}" ]]; then
+	ncbi_api_key="&api_key=${ncbi_api_key}"
+	api_key_test="$(retrieve_summary_xml "" "${ncbi_api_key}" | grep -o 'API key invalid')"
+	if [[ ! -z "${api_key_test}" ]]; then
+		ncbi_api_key=""
+	fi
+fi
+
 batch_count=1
-acc="$(get_lines ${1} 1 ${batch})"
+acc="$(get_lines ${input_file} 1 ${batch})"
 while [[ ! -z "${acc}" ]];
 do
 	out=""
@@ -49,7 +74,7 @@ do
 	do
 		# First try to get from summary, lighter resource 
 		# replacing \n for , 
-		xml_summary="$(retrieve_summary_xml "${acc//$'\n'/,}" "${api_key}")"
+		xml_summary="$(retrieve_summary_xml "${acc//$'\n'/,}" "${ncbi_api_key}")"
 		acc_summary="$(echo "${xml_summary}" | grep -oP '(?<=Name="AccessionVersion" Type="String">)[^<]+')"
 		# if no accession returned, try again
 		if [[ -z "${acc_summary}" ]]; then 
@@ -74,7 +99,7 @@ do
 		for i in $(seq 1 ${att});
 		do
 			# try another method
-			xml_fetch="$(retrieve_nucleotide_fasta_xml "${acc_diff//$'\n'/,}" "${api_key}")"
+			xml_fetch="$(retrieve_nucleotide_fasta_xml "${acc_diff//$'\n'/,}" "${ncbi_api_key}")"
 			acc_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_accver>)[^<]+')"
 			# if no accession returned, try again
 			if [[ -z "${acc_fetch}" ]]; then 
@@ -98,7 +123,7 @@ do
 	fi
 
 	# if should retrieve assembly accessions
-	if [[ -z "${assembly_accession}" ]]; 
+	if [ "${get_assembly_accession}" -eq 0 ]; 
 	then
 		echo "${out}"
 	else
@@ -111,7 +136,7 @@ do
 		if [[ ! -z "${acc_retrieved}" ]]; then 
 			for i in $(seq 1 ${att});
 			do
-				xml_link="$(retrieve_assembly_uid_xml "${acc_retrieved//$'\n'/&id=}" "${api_key}")"
+				xml_link="$(retrieve_assembly_uid_xml "${acc_retrieved//$'\n'/&id=}" "${ncbi_api_key}")"
 				# request with several &id= instead of comma separated to get in order
 				all_id_link="$(echo "${xml_link}" | tr -d '\n' | grep -oP '(?<=<LinkSet>).*?(?=</LinkSet>)' | tr -d ' ' | tr -d '\t')"
 				
@@ -151,7 +176,7 @@ do
 			for i in $(seq 1 ${att});
 			do
 				# Retrieve assembly accessions
-				xml_summary_assembly="$(retrieve_assembly_accession_xml "${uid_link//$'\n'/,}" "${api_key}")"
+				xml_summary_assembly="$(retrieve_assembly_accession_xml "${uid_link//$'\n'/,}" "${ncbi_api_key}")"
 				uid_summary_assembly="$(echo "${xml_summary_assembly}" | grep -oP '(?<=DocumentSummary uid=\")[^\"]+')"
 				if [[ -z "${uid_summary_assembly}" ]]; then 
 					continue
@@ -179,7 +204,7 @@ do
 
 	# read new batch
 	batch_count=$((batch_count+batch))
-	acc="$(get_lines ${1} ${batch_count} ${batch})"
+	acc="$(get_lines ${input_file} ${batch_count} ${batch})"
 done
 
 # Print errors to STDERR
