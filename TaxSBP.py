@@ -38,12 +38,7 @@ from taxsbp.Sequence import Sequence
 from scripts.LCA import LCA
 
 def main(_args):
-	parser = argparse.ArgumentParser(prog='TaxSBP',conflict_handler="resolve")
-	subparsers = parser.add_subparsers()
-
-	# create
-	cluster_parser = subparsers.add_parser('cluster', help='Cluster sequences')
-	cluster_parser.set_defaults(which='cluster')
+	cluster_parser = argparse.ArgumentParser(prog='TaxSBP',conflict_handler="resolve")
 	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> group]")
 	cluster_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
@@ -56,8 +51,8 @@ def main(_args):
 	cluster_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	cluster_parser.add_argument('-u', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
 
-	parser.add_argument('-v', action='version', version='%(prog)s 0.1')
-	args = parser.parse_args(_args)
+	cluster_parser.add_argument('-v', action='version', version='%(prog)s 0.1')
+	args = cluster_parser.parse_args(_args)
 
 	if len(_args)==0: # Print help calling script without parameters
 		parser.print_help() 
@@ -65,59 +60,57 @@ def main(_args):
 
 	special_ranks = ["taxid"] if not args.specialization else ["taxid", args.specialization]
 	
-	if args.which=="cluster":
+	taxnodes = TaxNodes(args.nodes_file, args.merged_file)
 
-		taxnodes = TaxNodes(args.nodes_file, args.merged_file)
+	if args.pre_cluster and args.pre_cluster not in special_ranks and not taxnodes.has_rank(args.pre_cluster):
+		print_log("Rank for pre-clustering not found: " + args.pre_cluster)
+		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
+		return
+	if args.bin_exclusive and args.bin_exclusive not in special_ranks and not taxnodes.has_rank(args.bin_exclusive):
+		print_log("Rank for bin exclusive not found: " + args.bin_exclusive)
+		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
+		return
 
-		if args.pre_cluster and args.pre_cluster not in special_ranks and not taxnodes.has_rank(args.pre_cluster):
-			print_log("Rank for pre-clustering not found: " + args.pre_cluster)
-			print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
-			return
-		if args.bin_exclusive and args.bin_exclusive not in special_ranks and not taxnodes.has_rank(args.bin_exclusive):
-			print_log("Rank for bin exclusive not found: " + args.bin_exclusive)
-			print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
-			return
+	# keep track of sequences read
+	sequences = {}
 
-		# keep track of sequences read
-		sequences = {}
+	number_of_bins = 0
+	if args.update_file:
+		groups_bins = parse_input(args.update_file, taxnodes, args.specialization, sequences, True)
+		number_of_bins = len(groups_bins)
+		
+		# join sequences in the bins
+		for binid, group_bin in groups_bins.items(): 
+			group_bin.join()
+			if args.bin_exclusive and len(group_bin.get_leaves())>1:
+				print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
 
-		number_of_bins = 0
-		if args.update_file:
-			groups_bins = parse_input(args.update_file, taxnodes, args.specialization, sequences, True)
-			number_of_bins = len(groups_bins)
-			
-			# join sequences in the bins
-			for binid, group_bin in groups_bins.items(): 
-				group_bin.join()
-				if args.bin_exclusive and len(group_bin.get_leaves())>1:
-					print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
+		# join pre-clustered groups by their LCA or unique leaf
+		set_leaf_bins(groups_bins, taxnodes)
 
-			# join pre-clustered groups by their LCA or unique leaf
-			set_leaf_bins(groups_bins, taxnodes)
-	
-		groups = parse_input(args.input_file, taxnodes, args.specialization, sequences, False)
+	groups = parse_input(args.input_file, taxnodes, args.specialization, sequences, False)
 
-		# fragment input
-		if args.fragment_len: fragment_groups(groups, sequences, args.fragment_len, args.overlap_len)
+	# fragment input
+	if args.fragment_len: fragment_groups(groups, sequences, args.fragment_len, args.overlap_len)
 
-		# merge bins to current groups
-		if args.update_file: 
-			#  add new sequences to the current bins
-			for g in groups_bins: groups[g].merge(groups_bins[g])
+	# merge bins to current groups
+	if args.update_file: 
+		#  add new sequences to the current bins
+		for g in groups_bins: groups[g].merge(groups_bins[g])
 
-		# Estimate bin len based on number of requested bins or direct by user
-		bin_len = args.bin_len if args.bin_len else sum([g.get_length() for g in groups.values()])/float(args.bins)
+	# Estimate bin len based on number of requested bins or direct by user
+	bin_len = args.bin_len if args.bin_len else sum([g.get_length() for g in groups.values()])/float(args.bins)
 
-		# Pre-clustering
-		if args.pre_cluster: pre_cluster(args.pre_cluster, groups, taxnodes, args.specialization)
+	# Pre-clustering
+	if args.pre_cluster: pre_cluster(args.pre_cluster, groups, taxnodes, args.specialization)
 
-		# cluster
-		final_bins = cluster(groups, taxnodes, bin_len, args.bin_exclusive, args.specialization)
+	# cluster
+	final_bins = cluster(groups, taxnodes, bin_len, args.bin_exclusive, args.specialization)
 
-		# sort by bin size
-		final_bins.sort(key=lambda tup: tup[0], reverse=True)
+	# sort by bin size
+	final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-		print_results(final_bins, taxnodes, sequences, args.bin_exclusive, args.specialization, number_of_bins)
+	print_results(final_bins, taxnodes, sequences, args.bin_exclusive, args.specialization, number_of_bins)
 
 def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 	# parent->children structure for fast loookup, only for used taxids 
