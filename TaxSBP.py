@@ -38,7 +38,7 @@ from taxsbp.Sequence import Sequence
 from scripts.LCA import LCA
 
 def main(_args):
-	cluster_parser = argparse.ArgumentParser(prog='TaxSBP',conflict_handler="resolve")
+	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve")
 	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> group]")
 	cluster_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
