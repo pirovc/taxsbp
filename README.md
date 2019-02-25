@@ -22,7 +22,7 @@ Input:
 ------
  * A tab-separated file:
 	
-	sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization] 
+	`sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization]`
  
  * nodes.dmp and merged.dmp from NCBI Taxonomy (ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz)
 	
@@ -30,7 +30,7 @@ Output:
 -------
  * A tab-separated file:
 
- 	sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization] <tab> bin id
+ 	`sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization] <tab> bin id`
 
 Example:
 --------
