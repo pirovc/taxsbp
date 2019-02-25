@@ -64,7 +64,8 @@ $ python3 TaxSBP.py -h
 	optional arguments:
 	  -h, --help           show this help message and exit
 	  -f <input_file>      Tab-separated with the fields: sequence id <tab>
-	                       sequence length <tab> taxonomic id [<tab> group]
+	                       sequence length <tab> taxonomic id [<tab>
+	                       specialization]
 	  -n <nodes_file>      nodes.dmp from NCBI Taxonomy
 	  -m <merged_file>     merged.dmp from NCBI Taxonomy
 	  -b <bins>            Approximate number of bins (estimated by total
@@ -82,7 +83,7 @@ $ python3 TaxSBP.py -h
 	  -r <bin_exclusive>   Make bins rank/taxid/specialization exclusive, so bins
 	                       won't have mixed sequences. When the chosen rank is not
 	                       present on a sequence lineage, this sequence will be
-	                       taxid/group exclusive. [none,specialization
+	                       taxid/specialization exclusive. [none,specialization
 	                       name,taxid,species,genus,...] Default: none
 	  -z <specialization>  Specialization name (e.g. assembly, strain). If given,
 	                       TaxSBP will cluster entries on a specialized level

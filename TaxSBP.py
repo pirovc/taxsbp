@@ -39,7 +39,7 @@ from scripts.LCA import LCA
 
 def main(_args):
 	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve")
-	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> group]")
+	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
 	cluster_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
@@ -47,7 +47,7 @@ def main(_args):
 	cluster_parser.add_argument('-a', metavar='<fragment_len>', dest="fragment_len", type=int, default=0, help="Fragment sequences into pieces, output accession will be modified with positions: ACCESION/start:end")
 	cluster_parser.add_argument('-o', metavar='<overlap_len>', dest="overlap_len", type=int, default=0, help="Overlap length between fragments [Only valid with -a]")
 	cluster_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
-	cluster_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/group exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
+	cluster_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	cluster_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	cluster_parser.add_argument('-u', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
 
