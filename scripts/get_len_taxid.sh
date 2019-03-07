@@ -1,7 +1,7 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
-att=3
-batch=50
+att=100
+batch=200
 
 retrieve_summary_xml()
 {
@@ -25,15 +25,16 @@ retrieve_assembly_accession_xml()
 
 get_lines()
 {
-	echo "$(sed -n "${2},$((${2}+${3}-1))p" < ${1})"
+	echo "$(sed -n "${2},$((${2}+${3}-1))p" ${1})"
 }
 
 function showhelp {
 	echo "get_len_taxid.sh by Vitor C. Piro (vitorpiro@gmail.com, http://github.com/pirovc)"
 	echo
-	echo $' -i [str] input_file (empty for STDIN)' 
+	echo $' -i [str] input_file (use - to read from STDIN)' 
 	echo $' -n [str] ncbi_api_key'
 	echo $' -a get_assembly_accession'
+	echo
 }
 
 input_file=""
@@ -50,7 +51,8 @@ while getopts "i:n:a" opt; do
     :) echo "Option -${OPTARG} requires an argument." >&2; exit 1 ;;
   esac
 done
-if [[ -z "${input_file}" || ${OPTIND} -eq 1 ]]; then
+if [ ${OPTIND} -eq 1 ]; then showhelp; exit 1; fi
+if [[ "${input_file}" == "-" ]]; then
 	input_file="/dev/stdin";
 fi
 shift $((OPTIND-1))
@@ -66,7 +68,7 @@ if [[ ! -z "${ncbi_api_key}" ]]; then
 fi
 
 batch_count=1
-acc="$(get_lines ${input_file:-/dev/stdin} 1 ${batch})"
+acc="$(get_lines ${input_file} 1 ${batch})"
 while [[ ! -z "${acc}" ]];
 do
 	out=""
