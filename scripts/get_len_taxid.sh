@@ -1,7 +1,7 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
-att=10
-batch=200
+att=3
+batch=50
 
 retrieve_summary_xml()
 {
@@ -15,7 +15,6 @@ retrieve_nucleotide_fasta_xml()
 
 retrieve_assembly_uid_xml()
 {
-	#echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=assembly&term=${1}${2}")"
 	echo "$(curl -s "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=nuccore&db=assembly&id=${1}${2}")"
 }
 
@@ -26,14 +25,14 @@ retrieve_assembly_accession_xml()
 
 get_lines()
 {
-	echo "$(sed -n "${2},$((${2}+${3}-1))p" ${1})"
+	echo "$(sed -n "${2},$((${2}+${3}-1))p" < ${1})"
 }
 
 function showhelp {
 	echo "get_len_taxid.sh by Vitor C. Piro (vitorpiro@gmail.com, http://github.com/pirovc)"
 	echo
-	echo $' -i input_file'
-	echo $' -n ncbi_api_key'
+	echo $' -i [str] input_file (empty for STDIN)' 
+	echo $' -n [str] ncbi_api_key'
 	echo $' -a get_assembly_accession'
 }
 
@@ -51,7 +50,9 @@ while getopts "i:n:a" opt; do
     :) echo "Option -${OPTARG} requires an argument." >&2; exit 1 ;;
   esac
 done
-if [ ${OPTIND} -eq 1 ]; then showhelp; exit 1; fi
+if [[ -z "${input_file}" || ${OPTIND} -eq 1 ]]; then
+	input_file="/dev/stdin";
+fi
 shift $((OPTIND-1))
 [ "$1" = "--" ] && shift
 
@@ -65,7 +66,7 @@ if [[ ! -z "${ncbi_api_key}" ]]; then
 fi
 
 batch_count=1
-acc="$(get_lines ${input_file} 1 ${batch})"
+acc="$(get_lines ${input_file:-/dev/stdin} 1 ${batch})"
 while [[ ! -z "${acc}" ]];
 do
 	out=""
