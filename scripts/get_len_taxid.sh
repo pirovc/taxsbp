@@ -1,6 +1,6 @@
 #!/bin/bash
 # Number of attempts to request data from e-utils
-att=100
+att=10
 batch=200
 
 retrieve_summary_xml()
@@ -31,32 +31,42 @@ get_lines()
 function showhelp {
 	echo "get_len_taxid.sh by Vitor C. Piro (vitorpiro@gmail.com, http://github.com/pirovc)"
 	echo
-	echo $' -i [str] input_file (use - to read from STDIN)' 
+	echo $' -i [str] input file with accessions (use - to read from STDIN)' 
+	echo $' -l [str] list of accesions (space separated)'
 	echo $' -n [str] ncbi_api_key'
 	echo $' -a get_assembly_accession'
 	echo
 }
 
 input_file=""
+list_acc=""
 ncbi_api_key=""
 get_assembly_accession=0
 
 OPTIND=1 # Reset getopts
-while getopts "i:n:a" opt; do
+while getopts "i:l:n:a" opt; do
   case ${opt} in
     i) input_file=${OPTARG} ;;
+    l) list_acc=${OPTARG} ;;
     n) ncbi_api_key=${OPTARG} ;;
-	a) get_assembly_accession=1 ;;
+    a) get_assembly_accession=1 ;;
     h|\?) showhelp; exit 1 ;;
     :) echo "Option -${OPTARG} requires an argument." >&2; exit 1 ;;
   esac
 done
 if [ ${OPTIND} -eq 1 ]; then showhelp; exit 1; fi
-if [[ "${input_file}" == "-" ]]; then
-	input_file="/dev/stdin";
-fi
 shift $((OPTIND-1))
 [ "$1" = "--" ] && shift
+
+if [[ "${input_file}" == "-" ]]; then
+	tmp_file="$(mktemp)"
+	cat /dev/stdin > ${tmp_file}
+	input_file=${tmp_file}
+elif [[ ! -z "${list_acc}" ]]; then
+	tmp_file="$(mktemp)"
+	echo -e "${list_acc// /$'\n'}" > ${tmp_file}
+	input_file=${tmp_file}
+fi
 
 # test if ncbi api key is valid
 if [[ ! -z "${ncbi_api_key}" ]]; then
@@ -81,6 +91,8 @@ do
 		acc_summary="$(echo "${xml_summary}" | grep -oP '(?<=Name="AccessionVersion" Type="String">)[^<]+')"
 		# if no accession returned, try again
 		if [[ -z "${acc_summary}" ]]; then 
+			#(>&2 printf "Continue summary ${i}\n")
+			sleep ${i} # wait to not oveload ncbi server
 			continue
 		else
 			len_summary="$(echo "${xml_summary}" | grep -oP '(?<=Name="Length" Type="Integer">)[^<]+')"
@@ -98,7 +110,8 @@ do
 	fi
 
 	# If there are accessions left
-	if [[ ! -z "${acc_diff}" ]]; then 
+	if [[ ! -z "${acc_diff}" ]]; then
+	        #(>&2 printf "Fetch\n")	
 		for i in $(seq 1 ${att});
 		do
 			# try another method
@@ -106,6 +119,8 @@ do
 			acc_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_accver>)[^<]+')"
 			# if no accession returned, try again
 			if [[ -z "${acc_fetch}" ]]; then 
+				#(>&2 printf "Continue fetch ${i}\n")
+				sleep ${i} # wait to not oveload ncbi server
 				continue
 			else
 				len_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_length>)[^<]+')"
@@ -209,6 +224,10 @@ do
 	batch_count=$((batch_count+batch))
 	acc="$(get_lines ${input_file} ${batch_count} ${batch})"
 done
+
+if [[ ! -z "${tmp_file}" ]]; then
+	rm ${tmp_file}
+fi
 
 # Print errors to STDERR
 if [[ ! -z "${failed}" ]];
