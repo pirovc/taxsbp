@@ -91,7 +91,7 @@ do
 		acc_summary="$(echo "${xml_summary}" | grep -oP '(?<=Name="AccessionVersion" Type="String">)[^<]+')"
 		# if no accession returned, try again
 		if [[ -z "${acc_summary}" ]]; then 
-			(>&2 printf "Continue summary ${i}\n")
+			#(>&2 printf "Continue summary ${i}\n")
 			sleep ${i} # wait to not oveload ncbi server
 			continue
 		else
@@ -111,7 +111,7 @@ do
 
 	# If there are accessions left
 	if [[ ! -z "${acc_diff}" ]]; then
-	        (>&2 printf "Fetch\n")	
+	        #(>&2 printf "Fetch\n")	
 		for i in $(seq 1 ${att});
 		do
 			# try another method
@@ -119,7 +119,7 @@ do
 			acc_fetch="$(echo "${xml_fetch}" | grep -oP '(?<=<TSeq_accver>)[^<]+')"
 			# if no accession returned, try again
 			if [[ -z "${acc_fetch}" ]]; then 
-				(>&2 printf "Continue fetch ${i}\n")
+				#(>&2 printf "Continue fetch ${i}\n")
 				sleep ${i} # wait to not oveload ncbi server
 				continue
 			else
