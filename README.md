@@ -7,17 +7,12 @@ Implementation of the approximation algorithm for the hierarchically structured 
 ## Dependencies:
 
 - python>=3.5
-- binpacking==1.4.1
-
-## Cloning
-
-```shh
-git clone https://github.com/pirovc/taxsbp.git
-```
+- binpacking>=1.3
 
 ## Installation
 
 ```shh
+git clone https://github.com/pirovc/taxsbp.git
 cd taxsbp
 python setup.py install
 taxsbp -h
