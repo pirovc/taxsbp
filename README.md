@@ -2,64 +2,45 @@
 
 Vitor C. Piro (vitorpiro@gmail.com)
 
-Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] based on the NCBI Taxonomy database [2].
+Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] based on the NCBI Taxonomy database [2] (uses LCA script from [3]).
 
-Dependencies:
--------------
+## Dependencies:
 
-python >=3.5.0
+- python>=3.5
+- binpacking>=1.3
 
-binpacking=1.3 (https://pypi.python.org/pypi/binpacking)
- 
-	pip install binpacking==1.3
+## Installation
 
-or install manually into TaxSBP.py folder:
-	
-	wget https://pypi.python.org/packages/c9/fe/56782753922a195d332d419949f889c1d59cab7b1780db2351bd8b99501c/binpacking-1.3.tar.gz
-	tar -xvf binpacking-1.3.tar.gz binpacking-1.3/binpacking/ --strip-components=1
-	
-Input: 
-------
+```shh
+git clone https://github.com/pirovc/taxsbp.git
+cd taxsbp
+python setup.py install
+taxsbp -h
+```
+## Usage
+
+### Input
+
  * A tab-separated file:
 	
 	`sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization]`
  
  * nodes.dmp and merged.dmp from NCBI Taxonomy (ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz)
-	
-Output:
--------
+
+### Output 
+
  * A tab-separated file:
 
- 	`sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization] <tab> bin id`
+ 	`sequence id [/seq.start:seq.end] <tab> sequence length <tab> taxonomic id [ <tab> specialization] <tab> bin id`
 
-Example:
---------
+## Parameters:
 
-	# From one or more FASTA files, grep accession version identifier
-	grep -o "^>\S*" sequences.fna | tr -d ">" > accessions.txt
-
-	# Retrieve length and taxonomic id from NCBI eutils
-	scripts/get_len_taxid.sh accessions.txt > acc_len_txid.txt
-
-	# Get taxonomy
-	wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
-	tar xfz taxdump.tar.gz nodes.dmp merged.dmp
-
-	# Run TaxSBP (clusters of 15M bases)
-	python3 TaxSBP.py -f acc_len_txid.txt -n nodes.dmp -m merged.dmp -l 15000000 > bins.txt
-	
-	# Re-write fasta into separated files 
-	scripts/split_fna_bins.sh sequences.fna bins.txt output_folder/
-
-Parameters:
------------
-
-$ python3 TaxSBP.py -h
+$ taxsbp -h
 
 	usage: TaxSBP [-h] -f <input_file> -n <nodes_file> [-m <merged_file>]
-	              [-b <bins>] [-l <bin_len>] [-a <fragment_len>]
-	              [-o <overlap_len>] [-p <pre_cluster>] [-r <bin_exclusive>]
-	              [-z <specialization>] [-u <update_file>] [-v]
+              [-b <bins>] [-l <bin_len>] [-a <fragment_len>]
+              [-o <overlap_len>] [-p <pre_cluster>] [-r <bin_exclusive>]
+              [-z <specialization>] [-u <update_file>] [-v]
 
 	optional arguments:
 	  -h, --help           show this help message and exit
@@ -96,9 +77,12 @@ $ python3 TaxSBP.py -h
 	  -v                   show program's version number and exit
 
 
+
 References:
 -----------
 
 [1] Codenotti, B., De Marco, G., Leoncini, M., Montangero, M., & Santini, M. (2004). Approximation algorithms for a hierarchically structured bin packing problem. Information Processing Letters, 89(5), 215–221. http://doi.org/10.1016/j.ipl.2003.12.001
 
 [2] Federhen, S. (2012). The NCBI Taxonomy database. Nucleic Acids Research, 40(D1), D136–D143. http://doi.org/10.1093/nar/gkr1178
+
+[3] https://www.ics.uci.edu/~eppstein/
