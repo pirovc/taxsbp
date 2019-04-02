@@ -35,10 +35,11 @@ from taxsbp.Group import Group
 from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
-from scripts.LCA import LCA
+from taxsbp.LCA import LCA
 
-def main(_args):
-	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve")
+def main():
+
+	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve",add_help=True)
 	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
 	cluster_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
@@ -50,13 +51,13 @@ def main(_args):
 	cluster_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	cluster_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	cluster_parser.add_argument('-u', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
+	cluster_parser.add_argument('-v', action='version', version='%(prog)s 0.1.1')
 
-	cluster_parser.add_argument('-v', action='version', version='%(prog)s 0.1')
-	args = cluster_parser.parse_args(_args)
+	if len(sys.argv)==1: # Print help calling script without parameters
+		cluster_parser.print_help() 
+		return
 
-	if len(_args)==0: # Print help calling script without parameters
-		parser.print_help() 
-		return 0
+	args = cluster_parser.parse_args() # read sys.argv[1:] by default
 
 	special_ranks = ["taxid"] if not args.specialization else ["taxid", args.specialization]
 	
@@ -379,4 +380,4 @@ def print_log(text):
 	sys.stderr.write(text+"\n")
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+	main()
