@@ -26,7 +26,7 @@ class Group:
 	def get_clusters_bpck(self):
 		bins = []
 		for c in self.elements:
-			bins.append(tuple([c.get_length(),*c.get_ids()]))
+			bins.append((c.get_length(),) + tuple(c.get_ids())) # bins.append(tuple([c.get_length(),*c.get_ids()]))
 		return bins
 
 	def join(self):
