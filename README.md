@@ -8,8 +8,8 @@ Implementation of the approximation algorithm for the hierarchically structured 
 
 ## Dependencies:
 
-- python>=3.5
-- binpacking>=1.3
+- python>=3.4
+- binpacking==1.4.1
 
 ## Installation
 
