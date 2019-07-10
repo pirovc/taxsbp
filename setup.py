@@ -15,7 +15,7 @@ def read(filename):
 
 setup(
     name="taxsbp",
-    version="0.1.1",
+    version="0.1.2",
     url="https://www.github.com/pirovc/taxsbp",
     license='MIT',
 
@@ -32,6 +32,7 @@ setup(
 
     classifiers=[
         'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
