@@ -9,7 +9,7 @@ Implementation of the approximation algorithm for the hierarchically structured 
 ## Dependencies:
 
 - python>=3.4
-- binpacking==1.4.1
+- [binpacking](https://pypi.org/project/binpacking/)==1.4.1
 
 ## Installation
 
