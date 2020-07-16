@@ -31,28 +31,28 @@ import math
 from collections import defaultdict
 from collections import OrderedDict
 from pprint import pprint
-
+from pylca.pylca import LCA
 from taxsbp.Group import Group
 from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
-from pylca.pylca import LCA
+
 
 def main():
 
 	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve",add_help=True)
-	cluster_parser.add_argument('-f', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
-	cluster_parser.add_argument('-n', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
-	cluster_parser.add_argument('-m', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
-	cluster_parser.add_argument('-b', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
-	cluster_parser.add_argument('-l', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
-	cluster_parser.add_argument('-a', metavar='<fragment_len>', dest="fragment_len", type=int, default=0, help="Fragment sequences into pieces, output accession will be modified with positions: ACCESION/start:end")
-	cluster_parser.add_argument('-o', metavar='<overlap_len>', dest="overlap_len", type=int, default=0, help="Overlap length between fragments [Only valid with -a]")
-	cluster_parser.add_argument('-p', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
-	cluster_parser.add_argument('-r', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
-	cluster_parser.add_argument('-z', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
-	cluster_parser.add_argument('-u', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
-	cluster_parser.add_argument('-v', action='version', version='%(prog)s 1.0.0')
+	cluster_parser.add_argument('-f','--input-file', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
+	cluster_parser.add_argument('-n','--nodes-file', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
+	cluster_parser.add_argument('-m','--merged-file', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
+	cluster_parser.add_argument('-b','--bins', metavar='<bins>', default=50, dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). Default: 50 [Mutually exclusive -l]")
+	cluster_parser.add_argument('-l','--bin-len', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins [Mutually exclusive -b]")
+	cluster_parser.add_argument('-a','--fragment-len', metavar='<fragment_len>', dest="fragment_len", type=int, default=0, help="Fragment sequences into pieces, output accession will be modified with positions: ACCESION/start:end")
+	cluster_parser.add_argument('-o','--overlap-len', metavar='<overlap_len>', dest="overlap_len", type=int, default=0, help="Overlap length between fragments [Only valid with -a]")
+	cluster_parser.add_argument('-p','--pre-cluster', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
+	cluster_parser.add_argument('-r','--bin-exclusive', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
+	cluster_parser.add_argument('-z','--specialization', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
+	cluster_parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
+	cluster_parser.add_argument('-v','--version', action='version', version='%(prog)s 1.0.0')
 
 	if len(sys.argv)==1: # Print help calling script without parameters
 		cluster_parser.print_help() 
@@ -60,16 +60,31 @@ def main():
 
 	args = cluster_parser.parse_args() # read sys.argv[1:] by default
 
-	special_ranks = ["taxid"] if not args.specialization else ["taxid", args.specialization]
-	
-	taxnodes = TaxNodes(args.nodes_file, args.merged_file)
+	pack(**vars(args))
 
-	if args.pre_cluster and args.pre_cluster not in special_ranks and not taxnodes.has_rank(args.pre_cluster):
-		print_log("Rank for pre-clustering not found: " + args.pre_cluster)
+
+def pack(bin_exclusive: str=None, 
+	bin_len: int=0, 
+	bins: int=50, 
+	fragment_len: int=0, 
+	input_file: str=None,
+	merged_file: str=None,
+	nodes_file: str=None,
+	overlap_len: int=0,
+	pre_cluster: str=None,
+	specialization: str=None,
+	update_file: str=None):
+
+	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
+	
+	taxnodes = TaxNodes(nodes_file, merged_file)
+
+	if pre_cluster and pre_cluster not in special_ranks and not taxnodes.has_rank(pre_cluster):
+		print_log("Rank for pre-clustering not found: " + pre_cluster)
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 		return
-	if args.bin_exclusive and args.bin_exclusive not in special_ranks and not taxnodes.has_rank(args.bin_exclusive):
-		print_log("Rank for bin exclusive not found: " + args.bin_exclusive)
+	if bin_exclusive and bin_exclusive not in special_ranks and not taxnodes.has_rank(bin_exclusive):
+		print_log("Rank for bin exclusive not found: " + bin_exclusive)
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 		return
 
@@ -77,42 +92,42 @@ def main():
 	sequences = {}
 
 	number_of_bins = 0
-	if args.update_file:
-		groups_bins = parse_input(args.update_file, taxnodes, args.specialization, sequences, True)
+	if update_file:
+		groups_bins = parse_input(update_file, taxnodes, specialization, sequences, True)
 		number_of_bins = len(groups_bins)
 		
 		# join sequences in the bins
 		for binid, group_bin in groups_bins.items(): 
 			group_bin.join()
-			if args.bin_exclusive and len(group_bin.get_leaves())>1:
+			if bin_exclusive and len(group_bin.get_leaves())>1:
 				print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
 
 		# join pre-clustered groups by their LCA or unique leaf
 		set_leaf_bins(groups_bins, taxnodes)
 
-	groups = parse_input(args.input_file, taxnodes, args.specialization, sequences, False)
+	groups = parse_input(input_file, taxnodes, specialization, sequences, False)
 
 	# fragment input
-	if args.fragment_len: fragment_groups(groups, sequences, args.fragment_len, args.overlap_len)
+	if fragment_len: fragment_groups(groups, sequences, fragment_len, overlap_len)
 
 	# merge bins to current groups
-	if args.update_file: 
+	if update_file: 
 		#  add new sequences to the current bins
 		for g in groups_bins: groups[g].merge(groups_bins[g])
 
 	# Estimate bin len based on number of requested bins or direct by user
-	bin_len = args.bin_len if args.bin_len else sum([g.get_length() for g in groups.values()])/float(args.bins)
+	blen = bin_len if bin_len else sum([g.get_length() for g in groups.values()])/float(bins)
 
 	# Pre-clustering
-	if args.pre_cluster: pre_cluster(args.pre_cluster, groups, taxnodes, args.specialization)
+	if pre_cluster: pre_cluster(pre_cluster, groups, taxnodes, specialization)
 
 	# cluster
-	final_bins = cluster(groups, taxnodes, bin_len, args.bin_exclusive, args.specialization)
+	final_bins = cluster(groups, taxnodes, blen, bin_exclusive, specialization)
 
 	# sort by bin size
 	final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-	print_results(final_bins, taxnodes, sequences, args.bin_exclusive, args.specialization, number_of_bins)
+	print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins)
 
 def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 	# parent->children structure for fast loookup, only for used taxids 
