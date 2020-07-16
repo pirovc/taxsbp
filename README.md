@@ -2,24 +2,16 @@
 
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/taxsbp/README.html)
 
-Vitor C. Piro (vitorpiro@gmail.com)
-
 Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] based on the NCBI Taxonomy database [2] (uses LCA script from [3]).
 
-## Dependencies:
-
-- python>=3.4
-- [binpacking](https://pypi.org/project/binpacking/)==1.4.1
-- [pylca](https://github.com/pirovc/pylca)==1.0.0
 
 ## Installation
 
 ```shh
-git clone https://github.com/pirovc/taxsbp.git
-cd taxsbp
-python setup.py install
-taxsbp -h
+conda -c bioconda -c conda-forge taxsbp
 ```
+or [manual installation](#manual-installation) without conda
+
 ## Usage
 
 ### Input
@@ -80,6 +72,31 @@ $ taxsbp -h
 	  -v                   show program's version number and exit
 
 
+## Manual Installation
+
+### Dependencies:
+
+- python>=3.4
+- [binpacking](https://pypi.org/project/binpacking/)==1.4.1
+- [pylca](https://github.com/pirovc/pylca)==1.0.0
+
+### Pylca:
+
+```shh
+git clone https://github.com/pirovc/pylca
+cd pylca
+python setup.py install
+```
+
+### TaxSBP + binpacking:
+
+```shh
+git clone https://github.com/pirovc/taxsbp.git
+cd taxsbp
+python setup.py install
+taxsbp -h
+```
+
 
 References:
 -----------
@@ -88,4 +105,4 @@ References:
 
 [2] Federhen, S. (2012). The NCBI Taxonomy database. Nucleic Acids Research, 40(D1), D136–D143. http://doi.org/10.1093/nar/gkr1178
 
-[3] https://www.ics.uci.edu/~eppstein/
+[3] https://www.ics.uci.edu/~eppstein/ in the package https://github.com/pirovc/pylca
