@@ -10,6 +10,7 @@ Implementation of the approximation algorithm for the hierarchically structured 
 
 - python>=3.4
 - [binpacking](https://pypi.org/project/binpacking/)==1.4.1
+- [pylca](https://github.com/pirovc/pylca)==1.0.0
 
 ## Installation
 

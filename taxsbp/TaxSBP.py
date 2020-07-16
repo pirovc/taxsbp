@@ -36,7 +36,7 @@ from taxsbp.Group import Group
 from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
-from taxsbp.LCA import LCA
+from pylca.pylca import LCA
 
 def main():
 
@@ -133,7 +133,7 @@ def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 
 	else: # default mode
 		final_bins = ApproxSBP(1, groups, children, bin_len)
-
+		
 	return final_bins	
 	
 def sum_tuple_ids(bin):
@@ -163,7 +163,7 @@ def bpck(d, bin_len):
 def ApproxSBP(v, groups, children, bin_len):
 	ch = children[v]
 	
-        # If it doesn't have any children it's a leaf and should return the packed sequences
+    # If it doesn't have any children it's a leaf and should return the packed sequences
 	if not ch: return bpck(groups[v].get_clusters_bpck(), bin_len)
 		
 	# Recursively bin pack children
