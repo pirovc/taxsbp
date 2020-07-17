@@ -37,7 +37,6 @@ from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
 
-
 def main():
 
 	cluster_parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve",add_help=True)
