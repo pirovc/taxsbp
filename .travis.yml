@@ -14,7 +14,7 @@ install:
   - python setup.py install
 
 script:
-  - python3 -m unittest discover -s tests/taxsbp/integration/
+  - python -m unittest discover -s tests/taxsbp/integration/
 
 notifications:
   email: false
