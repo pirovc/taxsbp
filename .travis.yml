@@ -12,10 +12,7 @@ install:
   - git clone https://github.com/pirovc/pylca.git
   - cd pylca
   - python setup.py install
-  - pwd
-  - ls
-  - cd taxsbp
-  - pwd
+  - cd ..
 
 script:
   - python -m unittest discover -s tests/taxsbp/integration/
