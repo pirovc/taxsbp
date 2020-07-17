@@ -6,7 +6,6 @@
 
 Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] based on the NCBI Taxonomy database [2] (uses LCA script from [3]).
 
-
 ## Installation
 
 ```shh
