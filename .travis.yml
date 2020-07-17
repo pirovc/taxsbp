@@ -10,6 +10,8 @@ python:
 install:
   - pip install binpacking==1.4.1
   - git clone https://github.com/pirovc/pylca.git
+  - cd pylca
+  - python setup.py install
 
 script:
   - python3 -m unittest discover -s tests/taxsbp/integration/
