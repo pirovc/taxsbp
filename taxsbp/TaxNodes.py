@@ -19,10 +19,10 @@ class TaxNodes:
 		with open(nodes_file,'r') as fnodes:
 			for line in fnodes:
 				taxid, parent_taxid, rank, _ = line.split('\t|\t',3)
-				taxid = int(taxid)
+				taxid = taxid
 				ranks[taxid] = rank
-				nodes[taxid] = int(parent_taxid)
-		nodes[1] = 0 #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
+				nodes[taxid] = parent_taxid
+		nodes[1] = "0" #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
 		
 		return nodes, ranks
 
@@ -32,7 +32,7 @@ class TaxNodes:
 		with open(merged_file,'r') as fmerged:
 			for line in fmerged:
 				old_taxid, new_taxid, _ = line.rstrip().split('\t|',2)
-				merged[int(old_taxid)] = int(new_taxid)
+				merged[old_taxid] = new_taxid
 		return merged
 
 	def build_children(self, nodes):
@@ -41,7 +41,7 @@ class TaxNodes:
 		for node in nodes:
 			while True:
 				children[self.nodes[node]].add(node) # Create parent:children structure only for used taxids
-				if node==1: break # root
+				if node=="1": break # root
 				node = self.nodes[node]
 		return children
 
@@ -50,13 +50,13 @@ class TaxNodes:
 		for node in nodes:
 			t=node
 			# while root or branch already on the tree
-			while t!=1 and t not in subtree:
+			while t!="1" and t not in subtree:
 				subtree[t] = self.get_parent(t)
 				t = self.get_parent(t)
 		return subtree
 
 	def get_rank_node(self, node, rank):
-		while self.ranks[node]!=rank and node!=1: node = self.nodes[node]
+		while self.ranks[node]!=rank and node!="1": node = self.nodes[node]
 		return node
 	
 	def get_parent(self, node):
@@ -74,3 +74,6 @@ class TaxNodes:
 	def has_rank(self, rank):
 		return True if rank in self.get_ranks() else False
 
+	def __repr__(self):
+		args = ['{}={}'.format(k, repr(v)) for (k,v) in vars(self).items()]
+		return 'TaxNodes({})'.format(', '.join(args))
