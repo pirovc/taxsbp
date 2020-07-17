@@ -61,9 +61,6 @@ def main():
 
 	args = cluster_parser.parse_args() # read sys.argv[1:] by default
 
-	if not args.output_file: args.output_file = sys.stdout
-
-
 	pack(**vars(args))
 
 
@@ -79,6 +76,8 @@ def pack(bin_exclusive: str=None,
 	pre_cluster: str=None,
 	specialization: str=None,
 	update_file: str=None):
+
+	if not output_file: output_file = sys.stdout
 
 	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
 	
