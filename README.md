@@ -33,19 +33,19 @@ or [manual installation](#manual-installation) without conda
 
 13 Sequences (A-M), 8 Specializations (S1-S9) distributed in the following hierarchy with 5 levels (rank1-5). Root node = 1. Leaf nodes marked with *
 
-	A	100		4.1	S1
-	B	50		4.1	S1
-	C	300		4.2	S2
-	D	100		4.3	S3
-	E	40		5.1	S4
-	F	50		5.1	S4
-	G	90		5.2	S5
-	H	1000	5.3	S6
-	I	10		4.5	S7
-	J	17		4.6	S8
-	K	5		4.6	S8
-	L	300		4.6	S8
-	M	733		1	S9
+    A    100   4.1    S1
+    B    50    4.1    S1
+    C    300   4.2    S2
+    D    100   4.3    S3
+    E    40    5.1    S4
+    F    50    5.1    S4
+    G    90    5.2    S5
+    H    1000  5.3    S6
+    I    10    4.5    S7
+    J    17    4.6    S8
+    K    5     4.6    S8
+    L    300   4.6    S8
+    M    733   1      S9
 
     rank-1                   1 ________________
                             / \           \    \
@@ -60,7 +60,7 @@ or [manual installation](#manual-installation) without conda
     spec.         S1   S2  S3   S4  S5   S6   S7  S8    S9
                  /  \   |   |   / \  |   |    |   /|\    |
     sequence    A    B  C   D  E  F  G   H    I  J K L   M
-    length    100  50 300 100 40 50 90 1000 10 17 5 300 733
+    length     100  50 300 100 40 50 90 1000 10 17 5 300 733
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp
 
