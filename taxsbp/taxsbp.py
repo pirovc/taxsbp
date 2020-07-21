@@ -398,7 +398,8 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 				taxid = sequences[seqid].taxid
 
 			i, pos = seqid.split("/")
-			print(seqid if output_unique_seqid else i, *pos.split(":"), sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
+			st, en = pos.split(":")
+			print(seqid if output_unique_seqid else i, st, en, sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
 
 	if output_file!=sys.stdout: output_file.close()
 
