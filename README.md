@@ -27,7 +27,7 @@ or [manual installation](#manual-installation) without conda
 
  * A tab-separated file:
 
- 	`sequence id [/seq.start:seq.end] <tab> sequence length <tab> taxonomic id [ <tab> specialization] <tab> bin id`
+ 	`sequence id <tab> seq.start <tab> seq.end <tab> sequence length <tab> taxonomic id <tab> bin id [ <tab> specialization] `
 
 ## Parameters:
 
