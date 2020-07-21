@@ -40,7 +40,6 @@ from taxsbp.Sequence import Sequence
 def main(arguments: str=None):
 
 	if arguments is not None: sys.argv=arguments
-	print(sys.argv)
 
 	parser = argparse.ArgumentParser(prog='TaxSBP', conflict_handler="resolve", add_help=True)
 	parser.add_argument('-i','--input-file', metavar='<input_file>', dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
@@ -84,7 +83,7 @@ def pack(bin_exclusive: str=None,
 	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
 	
 	taxnodes = TaxNodes(nodes_file, merged_file)
-
+	
 	if pre_cluster and pre_cluster not in special_ranks and not taxnodes.has_rank(pre_cluster):
 		print_log("Rank for pre-clustering not found: " + pre_cluster)
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
@@ -125,7 +124,7 @@ def pack(bin_exclusive: str=None,
 	blen = bin_len if bin_len else sum([g.get_length() for g in groups.values()])/float(bins)
 
 	# Pre-clustering
-	if pre_cluster: pre_cluster(pre_cluster, groups, taxnodes, specialization)
+	if pre_cluster: pre_cluster_groups(pre_cluster, groups, taxnodes, specialization)
 
 	# cluster
 	final_bins = cluster(groups, taxnodes, blen, bin_exclusive, specialization)
@@ -155,7 +154,7 @@ def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 				final_bins.extend(bpck(groups[orphan_taxid].get_clusters_bpck(), bin_len))
 
 	else: # default mode
-		final_bins = ApproxSBP(1, groups, children, bin_len)
+		final_bins = ApproxSBP("1", groups, children, bin_len)
 		
 	return final_bins	
 	
@@ -228,7 +227,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 				fields = line.rstrip().split('\t')
 				seqid= fields[0]
 				seqlen = int(fields[1])
-				taxid = int(fields[2])
+				taxid = fields[2]
 				if specialization:
 					spec = fields[3]
 					binid = int(fields[4]) if bins else None #int to spot possible error loading
@@ -315,7 +314,7 @@ def fragment_groups(groups, sequences, fragment_len, overlap_len):
 		frag_group.add_clusters(group.get_leaves(), frag_clusters)
 		groups[leaf] = frag_group #overwrite group
 
-def pre_cluster(pre_cluster_rank, groups, taxnodes, specialization):	
+def pre_cluster_groups(pre_cluster_rank, groups, taxnodes, specialization):	
 	# if pre-cluster is only by taxid or specialization (leaves), only last step is needed
 	if pre_cluster_rank!="taxid" and pre_cluster_rank!=specialization: 
 		
@@ -325,7 +324,7 @@ def pre_cluster(pre_cluster_rank, groups, taxnodes, specialization):
 		for leaf in groups:
 			t = leaf
 			lin = []	
-			while t!=1: # runs the tree until finds the chosen rank and save it on the target taxid (taxid from the rank chosen)
+			while t!="1": # runs the tree until finds the chosen rank and save it on the target taxid (taxid from the rank chosen)
 				if taxnodes.get_rank(t)==pre_cluster_rank:
 					# union is necessary because many taxids will have the same path and all of them should be united in one taxid
 					lineage_merge[t] |= set(lin) # union set operator (same as .extend for list), using set to avoid duplicates
@@ -352,7 +351,7 @@ def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 	if bin_exclusive!="taxid" and bin_exclusive!=specialization:
 		for leaf in groups:
 			t = taxnodes.get_rank_node(leaf, bin_exclusive)
-			if t==1: # If taxid was not found on the lineage, consider it as single
+			if t=="1": # If taxid was not found on the lineage, consider it as single
 				orphan_taxids.add(leaf)
 			else: # if it was found, add to unique rank list
 				rank_taxids.add(t)
@@ -390,7 +389,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 			# if bin_exclusive, recover bin_exclusive rank taxid
 			if bin_exclusive and bin_exclusive!="taxid" and bin_exclusive!=specialization:
 				taxid = taxnodes.get_rank_node(sequences[seqid].taxid, bin_exclusive)
-				if taxid==1: taxid = sequences[seqid].taxid
+				if taxid=="1": taxid = sequences[seqid].taxid
 			else: # otherwise, just use the input taxid
 				taxid = sequences[seqid].taxid
 
