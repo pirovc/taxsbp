@@ -6,10 +6,10 @@ class TestRun(unittest.TestCase):
         """
         Test if taxsbp runs
         """
-        ret = taxsbp.taxsbp.main("")
+        ret = taxsbp.taxsbp.pack(input_file="sample_data/seqinfo.tsv", nodes_file="sample_data/nodes.dmp")
 
         # check if ran okay
-        self.assertFalse(ret, "TaxSBP show help")
+        self.assertTrue(ret, "TaxSBP finished successfuly")
        
 if __name__ == '__main__':
     unittest.main()

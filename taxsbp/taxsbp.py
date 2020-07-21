@@ -83,7 +83,7 @@ def pack(bin_exclusive: str=None,
 	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
 	
 	taxnodes = TaxNodes(nodes_file, merged_file)
-
+	
 	if pre_cluster and pre_cluster not in special_ranks and not taxnodes.has_rank(pre_cluster):
 		print_log("Rank for pre-clustering not found: " + pre_cluster)
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
@@ -111,7 +111,6 @@ def pack(bin_exclusive: str=None,
 		set_leaf_bins(groups_bins, taxnodes)
 
 	groups = parse_input(input_file, taxnodes, specialization, sequences, False)
-
 
 	# fragment input
 	if fragment_len: fragment_groups(groups, sequences, fragment_len, overlap_len)
@@ -155,7 +154,7 @@ def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 				final_bins.extend(bpck(groups[orphan_taxid].get_clusters_bpck(), bin_len))
 
 	else: # default mode
-		final_bins = ApproxSBP(1, groups, children, bin_len)
+		final_bins = ApproxSBP("1", groups, children, bin_len)
 		
 	return final_bins	
 	

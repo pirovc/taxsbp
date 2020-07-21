@@ -22,7 +22,7 @@ class TaxNodes:
 				taxid = taxid
 				ranks[taxid] = rank
 				nodes[taxid] = parent_taxid
-		nodes[1] = "0" #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
+		nodes["1"] = "0" #Change parent taxid of the root node to 0 (it's usually 1 and causes infinite loop later)
 		
 		return nodes, ranks
 
@@ -31,7 +31,7 @@ class TaxNodes:
 		merged = {}
 		with open(merged_file,'r') as fmerged:
 			for line in fmerged:
-				old_taxid, new_taxid, _ = line.rstrip().split('\t|',2)
+				old_taxid, _, new_taxid, _ = line.split('\t',3)
 				merged[old_taxid] = new_taxid
 		return merged
 
