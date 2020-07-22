@@ -189,7 +189,7 @@ def ApproxSBP(v, groups, children, bin_len):
 	
     # If it doesn't have any children it's a leaf and should return the packed sequences
 	if not ch: return bpck(groups[v].get_clusters_bpck(), bin_len)
-		
+	
 	# Recursively bin pack children
 	# Sort children to keep it more consistent with different versions of the taxonomy (new taxids), str to for groups
 	ret = []

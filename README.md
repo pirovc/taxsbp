@@ -29,40 +29,52 @@ or [manual installation](#manual-installation) without conda
 
  	`sequence id <tab> seq.start <tab> seq.end <tab> sequence length <tab> taxonomic id <tab> bin id [ <tab> specialization] `
 
-## Running sample data:
+## Examples with sample data:
 
-13 Sequences (A-M), 8 Specializations (S1-S9) distributed in the following hierarchy with 5 levels (rank1-5). Root node = 1. Leaf nodes marked with *
+The sample data is comprised of:
 
-    A    100   4.1    S1
-    B    50    4.1    S1
-    C    300   4.2    S2
-    D    100   4.3    S3
-    E    40    5.1    S4
-    F    50    5.1    S4
-    G    90    5.2    S5
-    H    1000  5.3    S6
-    I    10    4.5    S7
-    J    17    4.6    S8
-    K    5     4.6    S8
-    L    300   4.6    S8
-    M    733   1      S9
+	- Root node (1)
+	- hierarchy with 5 levels (rank1-rank5)
+	- Leaf nodes (*)
+	- 8 Specializations (S1-S9)
+	- 13 targets (A-M) with equal length (100) 
 
-    rank-1                   1 ________________
-                            / \           \    \
-    rank-2                2.1 2.2 ______   \    \
-                          / \    \      \   \    \
-    rank-3             3.1  3.2   3.4    \   \    \
-                        /   / \     \     \   \    \
-    rank-4          *4.1 *4.2 *4.3   4.4  *4.5 *4.6 \
-                     /    /   /     / | \   \   \    \
-    rank-5          /    /   / *5.1*5.2*5.3  \   \    \
-                   /    /   /    |   |   |    \   \    \
-    spec.         S1   S2  S3   S4  S5   S6   S7  S8    S9
-                 /  \   |   |   / \  |   |    |   /|\    |
-    sequence    A    B  C   D  E  F  G   H    I  J K L   M
-    length     100  50 300 100 40 50 90 1000 10 17 5 300 733
+	rank-1                   1 ________________
+	                        / \           \    \
+	rank-2                2.1 2.2 ______   \    \
+	                      / \    \      \   \    \
+	rank-3             3.1  3.2   3.4    \   \    \
+	                    /   / \     \     \   \    \
+	rank-4          *4.1 *4.2 *4.3   4.4  *4.5 *4.6 \
+	                 /    /   /     / | \   \   \    \
+	rank-5          /    /   / *5.1 *5.2 \   \   \    \
+	               /    /   /     /   |   \   \   \    \
+	spec.         S1   S2  S3   S4   S5   S6  S7  S8   S9
+	             /  \   |   |   / \   |   |   |   /|\   |
+	target      A    B  C   D  E   F  G   H   I  J K L  M
 
-	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp
+### Clusters of size 400
+
+	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 400
+
+<details>
+  <summary>Results</summary>
+
+	F	1	100	100	5.1	0
+	E	1	100	100	5.1	0
+	H	1	100	100	4.4	0
+	G	1	100	100	5.2	0
+	D	1	100	100	4.3	1
+	C	1	100	100	4.2	1
+	B	1	100	100	4.1	1
+	A	1	100	100	4.1	1
+	L	1	100	100	4.6	2
+	K	1	100	100	4.6	2
+	J	1	100	100	4.6	2
+	M	1	100	100	1	2
+	I	1	100	100	4.5	3
+
+</details>
 
 ## Parameters:
 
