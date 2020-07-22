@@ -17,8 +17,8 @@ class TestRun(unittest.TestCase):
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
 
     def test_fragment(self):
-        cfg = Config(**self.default_config,
-                     fragment_len=50)
+        cfg = Config(**self.default_config)
+        cfg.fragment_len=50
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP finished successfuly")
         inf, outf = parse_files(cfg)
@@ -28,16 +28,16 @@ class TestRun(unittest.TestCase):
         self.assertTrue(outf.length.max()<=cfg.fragment_len, "Fragment bigger than expected")
 
     def test_fragment_overlap(self):
-        cfg = Config(**self.default_config,
-                     fragment_len=22,
-                     overlap_len=7)
+        cfg = Config(**self.default_config)
+        cfg.fragment_len=22
+        cfg.overlap_len=7
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP finished successfuly")
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
         # specific test
-        self.assertTrue(outf.length.max()<=cfg.fragment_len+cfg.overlap_len, "Fragment bigger than expected")
+        self.assertTrue(outf.length.max()<=cfg.fragment_len+cfg.overlap_len, "Fragment+overlap bigger than expected")
 
 def parse_files(cfg):
     inf = parse_input(cfg.input_file)
@@ -55,7 +55,6 @@ def parse_output(file):
     return pd.read_csv(file, sep='\t', header=None, skiprows=0, names=colums, dtype=types)
 
 def sanity_check(cfg, inf, outf):
-
     if inf.empty: 
         print("Input file is empty")
         return False

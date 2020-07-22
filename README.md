@@ -62,6 +62,7 @@ Clusters are limited by size 400
 <details>
   <summary>Results</summary>
 
+	#id	st	end	len	tax	bin	
 	F	1	100	100	5.1	0
 	E	1	100	100	5.1	0
 	H	1	100	100	4.4	0
@@ -87,6 +88,7 @@ ABCD (2.1) and EFGHI (2.2) are forced together (even if bigger than 400)
 <details>
   <summary>Results</summary>
 
+	#id	st	end	len	tax	bin	
 	I	1	100	100	4.5	0
 	G	1	100	100	5.2	0
 	E	1	100	100	5.1	0
@@ -112,6 +114,7 @@ Clusters are generated for each sub-tree of nodes from rank-4. The used rank is 
 <details>
   <summary>Results</summary>
 
+	#id	st	end	len	tax	bin	
 	F	1	100	100	4.4	0
 	E	1	100	100	4.4	0
 	H	1	100	100	4.4	0
@@ -137,6 +140,7 @@ Clusters are exclusive by specialization
 <details>
   <summary>Results</summary>
 
+	#id	st	end	len	tax	bin	spec	
 	L	1	100	100	4.6	0	S8
 	K	1	100	100	4.6	0	S8
 	J	1	100	100	4.6	0	S8
@@ -162,6 +166,7 @@ Clusters of size 150. Fragment inputs in 50 with overlap of 5. Cluster exclusive
 <details>
   <summary>Results</summary>
 
+	#id	st	end	len	tax	bin	
 	F	1	55	55	3.4	0
 	E	1	55	55	3.4	0
 	B	1	55	55	3.1	1
@@ -243,9 +248,9 @@ $ taxsbp -h
 ### Dependencies:
 
 - python>=3.4
-- pandas>=1.0.0 (tests only)
 - [binpacking](https://pypi.org/project/binpacking/)==1.4.1
 - [pylca](https://github.com/pirovc/pylca)==1.0.0
+- [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0 (tests only)
 
 ### Pylca:
 
@@ -264,6 +269,13 @@ python setup.py install
 taxsbp -h
 ```
 
+### Testing:
+
+```shh
+pip install "pandas>=0.22.0"
+cd taxsbp
+python3 -m unittest discover -s tests/taxsbp/integration/
+```
 
 References:
 -----------
