@@ -95,12 +95,14 @@ def pack(bin_exclusive: str=None,
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 		return False
 
-	# keep track of sequences read
+	# structure to keep sequence information
 	sequences = {}
+	# keep track of sequences read
+	control_seqid = set()
 
 	number_of_bins = 0
 	if update_file:
-		groups_bins = parse_input(update_file, taxnodes, specialization, sequences, True)
+		groups_bins = parse_input(update_file, taxnodes, specialization, sequences, control_seqid, bins=True)
 		number_of_bins = len(groups_bins)
 		
 		# join sequences in the bins
@@ -112,7 +114,12 @@ def pack(bin_exclusive: str=None,
 		# join pre-clustered groups by their LCA or unique leaf
 		set_leaf_bins(groups_bins, taxnodes)
 
-	groups = parse_input(input_file, taxnodes, specialization, sequences, False)
+
+	groups = parse_input(input_file, taxnodes, specialization, sequences, control_seqid, bins=False)
+
+	if not groups:
+		print_log("No entries to cluster")
+		return False
 
 	# fragment input
 	fragment_groups(groups, sequences, fragment_len, overlap_len)
@@ -224,28 +231,43 @@ def set_leaf_bins(groups_bins, taxnodes):
 		del groups_bins[binid]
 
 
-def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
-	# input file -> fields (0:SEQID 1:LENGTH 2:TAXID [3:SPECIALIZATION] [3-4:BINID])
+def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, bins: bool=False):
+	# Parser for input_file or update_file
+	#input_file: 0:SEQID 1:LENGTH 2:TAXID [3:SPECIALIZATION] 
+	#update_file: 0:SEQID 1:SEQSTART 2:SEQEND 3:LENGTH 4:TAXID 5:BINID [6:SPECIALIZATION]
+	
+	fields_pos = {"seqid": 0}
+	if bins:
+		fields_pos["seqstart"] = 1
+		fields_pos["seqend"] = 2
+		fields_pos["seqlen"] = 3
+		fields_pos["taxid"] = 4
+		fields_pos["binid"] = 5
+		fields_pos["specialization"] = 6
+	else:
+		fields_pos["seqlen"] = 1
+		fields_pos["taxid"] = 2
+		fields_pos["specialization"] = 3
+
 	groups = defaultdict(Group)
 	with open(input_file,'r') as file:
 		for line in file:
 			try:
 
 				fields = line.rstrip().split('\t')
-				seqid= fields[0]
-				seqlen = int(fields[1])
-				taxid = fields[2]
-				if specialization:
-					spec = fields[3]
-					binid = int(fields[4]) if bins else None #int to spot possible error loading
-				else:
-					spec = None
-					binid = int(fields[3]) if bins else None #int to spot possible error loading
+				seqid = fields[fields_pos["seqid"]]
+				seqlen = int(fields[fields_pos["seqlen"]])
+				taxid = fields[fields_pos["taxid"]]
+				binid = int(fields[fields_pos["binid"]]) if bins else None
+				spec = fields[fields_pos["specialization"]] if specialization else None
 
-				# validations
-				if seqid in sequences:
-				 	print_log("[" + seqid + "] skipped - duplicated sequence identifier)")
+				# if reading main input (after loaded bins), do not add duplicated sequences
+				if not bins and seqid in control_seqid:
+				 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
 				 	continue
+
+				# add entry
+				control_seqid.add(seqid)
 
 				if not taxnodes.get_parent(taxid): 
 					m = taxnodes.get_merged(taxid)
@@ -263,8 +285,11 @@ def parse_input(input_file, taxnodes, specialization, sequences, bins=False):
 						continue
 					# update taxonomy
 					taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
-					
-				# for internal check
+
+				# generate unique_seqid
+				if bins: seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
+
+				# keep sequence information
 				sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
 
 				# Define leaf
@@ -309,7 +334,8 @@ def fragment_groups(groups, sequences, fragment_len, overlap_len):
 							if fraglen<=overlap_len and i>=1: continue # if last fragment is smaller than overlap and its not the first (fraglen<overlap_len)already covered in the last fragment), skip
 						
 						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
-						fragid=seqid+"/"+str(frag_start)+":"+str(frag_end)
+						fragid=make_unique_seqid(seqid,frag_start,frag_end)
+						
 
 						frag_clusters.append(Cluster(fragid,fraglen)) # create cluster for fragment
 						# update sequence entry
@@ -402,14 +428,21 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 			else: # otherwise, just use the input taxid
 				taxid = sequences[seqid].taxid
 
-			i, pos = seqid.split("/")
-			st, en = pos.split(":")
-			print(seqid if output_unique_seqid else i, st, en, sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
+			parsed_seqid, st, en = split_unique_seqid(seqid)
+			print(seqid if output_unique_seqid else parsed_seqid, st, en, sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
 
 	if output_file!=sys.stdout: output_file.close()
 
 def print_log(text):
 	sys.stderr.write(text+"\n")
+
+def split_unique_seqid(unique_seqid):
+	i, pos = unique_seqid.split("/")
+	st, en = pos.split(":")
+	return i, st, en
+
+def make_unique_seqid(seqid, st, en):
+	return seqid+"/"+str(st)+":"+str(en)
 
 if __name__ == "__main__":
 	main()
