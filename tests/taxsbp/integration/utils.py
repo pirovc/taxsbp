@@ -1,43 +1,4 @@
-import unittest
-import taxsbp.taxsbp
 import pandas as pd
-
-class TestRun(unittest.TestCase):
-    
-    default_config = {"input_file": "sample_data/seqinfo.tsv",
-                        "nodes_file": "sample_data/nodes.dmp",
-                        "output_file": "tests/output_test_run1.tsv"}
-
-    def test_basic(self):
-        cfg = Config(**self.default_config)
-        # run check
-        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP finished successfuly")
-        inf, outf = parse_files(cfg)
-        # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-
-    def test_fragment(self):
-        cfg = Config(**self.default_config)
-        cfg.fragment_len=50
-        # run check
-        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP finished successfuly")
-        inf, outf = parse_files(cfg)
-        # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test
-        self.assertTrue(outf.length.max()<=cfg.fragment_len, "Fragment bigger than expected")
-
-    def test_fragment_overlap(self):
-        cfg = Config(**self.default_config)
-        cfg.fragment_len=22
-        cfg.overlap_len=7
-        # run check
-        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP finished successfuly")
-        inf, outf = parse_files(cfg)
-        # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test
-        self.assertTrue(outf.length.max()<=cfg.fragment_len+cfg.overlap_len, "Fragment+overlap bigger than expected")
 
 def parse_files(cfg):
     inf = parse_input(cfg.input_file)
@@ -47,12 +8,12 @@ def parse_files(cfg):
 def parse_input(file):
     colums=['seqid', 'length', 'taxid', 'specialization']
     types={'seqid': 'str', 'length': 'uint64', 'taxid': 'str', 'specialization': 'str'}
-    return pd.read_csv(file, sep='\t', header=None, skiprows=0, names=colums, dtype=types)
+    return pd.read_table(file, sep='\t', header=None, skiprows=0, names=colums, dtype=types)
 
 def parse_output(file):
-    colums=['seqid', 'start',' end', 'length', 'taxid', 'binid', 'specialization']
+    colums=['seqid', 'seqstart', 'seqend', 'length', 'taxid', 'binid', 'specialization']
     types={'seqid': 'str', 'start': 'uint64', 'end': 'uint64', 'length': 'uint64', 'taxid': 'str', 'binid': 'uint64', 'specialization': 'str'}
-    return pd.read_csv(file, sep='\t', header=None, skiprows=0, names=colums, dtype=types)
+    return pd.read_table(file, sep='\t', header=None, skiprows=0, names=colums, dtype=types)
 
 def sanity_check(cfg, inf, outf):
     if inf.empty: 
@@ -61,6 +22,7 @@ def sanity_check(cfg, inf, outf):
     if outf.empty: 
         print("Output file is empty")
         return False
+
     if not cfg.overlap_len:
         # check if input and output are the same
         if not inf.groupby(["seqid"]).sum()["length"].equals(outf.groupby(["seqid"]).sum()["length"]):
@@ -76,6 +38,12 @@ def sanity_check(cfg, inf, outf):
             print("lengths not consistent between input and output")
             return False
     return True
+
+def split_unique_seqid(outf):
+    # split unique seqid into seqid, seqid_unique and pos
+    outf["seqid_unique"] = outf["seqid"]
+    outf[["seqid","pos"]] = outf.seqid_unique.str.split("/", expand=True,)
+    return outf
 
 class Config():
 
@@ -107,6 +75,3 @@ class Config():
         self.specialization=specialization
         self.update_file=update_file
         self.output_unique_seqid=output_unique_seqid
-
-if __name__ == '__main__':
-    unittest.main()
