@@ -9,7 +9,7 @@ python:
 
 install:
   - pip install "pandas>=0.22.0"
-  - pip install binpacking==1.4.1
+  - pip install binpacking==1.4.3
   - git clone https://github.com/pirovc/pylca.git
   - cd pylca
   - python setup.py install
