@@ -54,7 +54,6 @@ def main(arguments: str=None):
 	parser.add_argument('-e','--bin-exclusive', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-s','--specialization', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
-	parser.add_argument('-q','--output-unique-seqid', default=False, action='store_true',  help='Output unique sequence ids after fragmentation in the format: seq.id/seq.start:seq.end]')
 	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.0.0')
 
 	if len(sys.argv)<=1: # Print help calling script without parameters
@@ -77,8 +76,7 @@ def pack(bin_exclusive: str=None,
 		output_file: str=None,
 		pre_cluster: str=None,
 		specialization: str=None,
-		update_file: str=None,
-		output_unique_seqid: bool=False):
+		update_file: str=None):
 
 	if not output_file: output_file = sys.stdout
 
@@ -146,7 +144,7 @@ def pack(bin_exclusive: str=None,
 	# sort by bin size
 	final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-	print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file, output_unique_seqid)
+	print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file)
 
 	return True
 
@@ -395,7 +393,7 @@ def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 
 	return rank_taxids, orphan_taxids
 
-def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file, output_unique_seqid):
+def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file):
 
 	if output_file!=sys.stdout: output_file=open(output_file,"w")
 	new_bins_count=number_of_bins # start bin count in the number of bins (0 if new cluster)
@@ -429,7 +427,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 				taxid = sequences[seqid].taxid
 
 			parsed_seqid, st, en = split_unique_seqid(seqid)
-			print(seqid if output_unique_seqid else parsed_seqid, st, en, sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
+			print(parsed_seqid, st, en, sequences[seqid].seqlen, taxid, str(binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
 
 	if output_file!=sys.stdout: output_file.close()
 

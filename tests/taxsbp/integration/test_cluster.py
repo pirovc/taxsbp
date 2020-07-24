@@ -119,7 +119,7 @@ class TestCluster(unittest.TestCase):
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test - even when possible (bin_len=1500), using bin_exclusive should split the inputs into more bins
+        # specific test - even when possible (bin_len=1300), using bin_exclusive should split the inputs into more bins
         self.assertTrue(outf["binid"].max()>0 , "Bin-exclusive clustering failed")
 
     def test_bins(self):
@@ -131,7 +131,7 @@ class TestCluster(unittest.TestCase):
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test - matching number of bins with cho (not always but works in this case)
+        # specific test - matching number of bins with chosen value (not always but works in this case)
         self.assertEqual(outf["binid"].max()+1, cfg.bins, "Number of bins do not match")
 
     def test_bin_len(self):
