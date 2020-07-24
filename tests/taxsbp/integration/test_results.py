@@ -43,7 +43,7 @@ class TestResults(unittest.TestCase):
 	        # sanity check
 	        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
 	        # specific check
-	        unique_binid = outf[["binid","specialization" if bin_exclusive=="spec" else "taxid"]].drop_duplicates(ignore_index=True)
+	        unique_binid = outf[["binid","specialization" if bin_exclusive=="spec" else "taxid"]].drop_duplicates()
 	        # bin ids should be uniquely matched (not mixed)
 	        self.assertEqual(unique_binid.shape[0], unique_binid.binid.max()+1, "Bins are not rank exclusive")
 
