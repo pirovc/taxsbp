@@ -119,7 +119,7 @@ class TestCluster(unittest.TestCase):
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test - even when possible (bin_len=1500), using bin_exclusive should split the inputs into more bins
+        # specific test - even when possible (bin_len=1300), using bin_exclusive should split the inputs into more bins
         self.assertTrue(outf["binid"].max()>0 , "Bin-exclusive clustering failed")
 
     def test_bins(self):
@@ -131,7 +131,7 @@ class TestCluster(unittest.TestCase):
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test - matching number of bins with cho (not always but works in this case)
+        # specific test - matching number of bins with chosen value (not always but works in this case)
         self.assertEqual(outf["binid"].max()+1, cfg.bins, "Number of bins do not match")
 
     def test_bin_len(self):
@@ -147,20 +147,6 @@ class TestCluster(unittest.TestCase):
         max_bin_len = outf.groupby(["binid"]).sum()["length"].max()
         self.assertTrue(max_bin_len<=cfg.bin_len, "Bin is bigger than requested")
 
-    def test_unique_seqid(self):
-        cfg = Config(**self.default_config)
-        cfg.output_file=self.results_dir+"test_unique_seqid.tsv"
-        cfg.output_unique_seqid=True
-        # run check
-        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-        inf, outf = parse_files(cfg)
-        outf = split_unique_seqid(outf)
-
-        # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-        # specific test - check if seqstart and seqend from unique id matches with the ones provided by the output
-        self.assertTrue(outf["pos"].equals(outf[["seqstart","seqend"]].apply(lambda row: ':'.join(row.values.astype(str)), axis=1)), "Bin is bigger than requested")
-
     def test_all(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_all.tsv"
@@ -172,12 +158,10 @@ class TestCluster(unittest.TestCase):
         cfg.overlap_len=9
         cfg.pre_cluster="rank-2"
         cfg.specialization="strain"
-        cfg.output_unique_seqid=True
   
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
-        outf = split_unique_seqid(outf)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
 

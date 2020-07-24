@@ -39,12 +39,6 @@ def sanity_check(cfg, inf, outf):
             return False
     return True
 
-def split_unique_seqid(outf):
-    # split unique seqid into seqid, seqid_unique and pos
-    outf["seqid_unique"] = outf["seqid"]
-    outf[["seqid","pos"]] = outf.seqid_unique.str.split("/", expand=True,)
-    return outf
-
 class Config():
 
     def __init__(self,
@@ -59,8 +53,7 @@ class Config():
         output_file: str=None,
         pre_cluster: str=None,
         specialization: str=None,
-        update_file: str=None,
-        output_unique_seqid: bool=False):
+        update_file: str=None):
 
         self.bin_exclusive=bin_exclusive
         self.bin_len=bin_len
@@ -74,4 +67,3 @@ class Config():
         self.pre_cluster=pre_cluster
         self.specialization=specialization
         self.update_file=update_file
-        self.output_unique_seqid=output_unique_seqid
