@@ -196,6 +196,18 @@ Clusters of size 150. Fragment inputs in 50 with overlap of 5. Cluster exclusive
 
 </details>
 
+## Examples with real data:
+
+### Prepare data:
+
+	gzip -d sample_data/20181219_abfv_refseq_cg.tsv.gz
+	wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+	tar xf taxdump.tar.gz nodes.dmp merged.dmp
+
+### Running species exclusive clustering:
+
+	taxsbp.py -i sample_data/20181219_abfv_refseq_cg.tsv -n nodes.dmp -m merged.dmp -l 10000000 -f 999500 -a 500 -e "species"
+
 ## Parameters:
 
 $ taxsbp -h
