@@ -248,7 +248,7 @@ $ taxsbp -h
 ### Dependencies:
 
 - python>=3.4
-- [binpacking](https://pypi.org/project/binpacking/)==1.4.1
+- [binpacking](https://pypi.org/project/binpacking/)==1.4.3
 - [pylca](https://github.com/pirovc/pylca)==1.0.0
 - [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0 (tests only)
 
