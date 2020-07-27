@@ -57,7 +57,7 @@ def main(arguments: str=None):
 	parser.add_argument('-p','--pre-cluster', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-e','--bin-exclusive', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-s','--specialization', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
-	parser.add_argument('-t','--silent', metavar='<silent>', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
+	parser.add_argument('-t','--silent', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
 	parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
 	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.0.0')
 
@@ -68,7 +68,6 @@ def main(arguments: str=None):
 	args = parser.parse_args() # read sys.argv[1:] by default
 
 	return pack(**vars(args))
-
 
 def pack(bin_exclusive: str=None, 
 		bin_len: int=0, 
@@ -106,7 +105,7 @@ def pack(bin_exclusive: str=None,
 
 	# structure to keep sequence information
 	sequences = {}
-	number_of_bins = 0
+	
 
 	# Parse from file
 	if update_file:
@@ -128,12 +127,12 @@ def pack(bin_exclusive: str=None,
 		set_specialization_tax(input_table, update_table, taxnodes, specialization)
 
 	if input_table.empty or (update_file and update_table.empty):
-		print_log("No entries to process")
+		print_log("No entries to cluster")
 		return False
 
+	number_of_bins = 0
 	if not update_table.empty:
 		groups_bins = process_update_table(update_table, taxnodes, specialization, sequences)
-		
 		number_of_bins = len(groups_bins)
 		
 		# join sequences in the bins
@@ -145,13 +144,8 @@ def pack(bin_exclusive: str=None,
 		# join pre-clustered groups by their LCA or unique leaf
 		set_leaf_bins(groups_bins, taxnodes)
 
-	
 	groups = process_input_table(input_table, taxnodes, specialization, sequences)
 	del input_table, update_table
-
-	if not groups:
-		print_log("No entries to cluster")
-		return False
 
 	# fragment input
 	fragment_groups(groups, sequences, fragment_len, overlap_len)
@@ -264,32 +258,22 @@ def set_leaf_bins(groups_bins, taxnodes):
 
 
 def process_input_table(input_table, taxnodes, specialization, sequences: set=None):
-	
 	groups = defaultdict(Group)
-
 	for index, row in input_table.iterrows():
-
 		# keep sequence information
 		sequences[row['seqid']] = Sequence(row['length'], row['taxid'], row['specialization'], None)
-
 		leaf = row['specialization'] if specialization else row['taxid']
-
 		# Add sequence as cluster and relative leaf nodes
 		groups[leaf].add_cluster(leaf, row['seqid'], row['length'])
-
 	return groups
 
 def process_update_table(update_table, taxnodes, specialization, sequences):
 	groups = defaultdict(Group)
-
 	for index, row in update_table.iterrows():
 		row['seqid'] = make_unique_seqid(row['seqid'], row["seqstart"], row["seqend"])
-
 		# keep sequence information
 		sequences[row['seqid']] = Sequence(row['length'], row['taxid'], row['specialization'], row['binid'])
-
 		leaf = row['specialization'] if specialization else row['taxid']
-
 		# Add sequence as cluster and relative leaf nodes
 		# binid integer, taxid always string
 		groups[row['binid']].add_cluster(leaf, row['seqid'], row['length'])
