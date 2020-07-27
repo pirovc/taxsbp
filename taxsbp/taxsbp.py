@@ -39,6 +39,8 @@ from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
 
+_taxsbp_silent = True
+
 def main(arguments: str=None):
 
 	if arguments is not None: sys.argv=arguments
@@ -55,6 +57,7 @@ def main(arguments: str=None):
 	parser.add_argument('-p','--pre-cluster', metavar='<pre_cluster>', dest="pre_cluster", type=str, default="", help="Pre-cluster sequences into rank/taxid/specialization, so they won't be splitted among bins [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-e','--bin-exclusive', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-s','--specialization', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
+	parser.add_argument('-t','--silent', metavar='<silent>', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
 	parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
 	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.0.0')
 
@@ -80,7 +83,11 @@ def pack(bin_exclusive: str=None,
 		specialization: str=None,
 		update_file: str=None,
 		input_table: pd.DataFrame=None,
-		update_table: pd.DataFrame=None):
+		update_table: pd.DataFrame=None,
+		silent: bool=True):
+
+	global _taxsbp_silent
+	_taxsbp_silent = silent
 
 	if not output_file: output_file = sys.stdout
 
@@ -99,8 +106,6 @@ def pack(bin_exclusive: str=None,
 
 	# structure to keep sequence information
 	sequences = {}
-	# keep track of sequences read
-	seqids = set()
 	number_of_bins = 0
 
 	# Parse from file
@@ -112,15 +117,22 @@ def pack(bin_exclusive: str=None,
 	# Check if update table exists, otherwise create an empty
 	if update_table is None: update_table = pd.DataFrame()
 
+	# Verify for duplicates and repetead entries
+	check_tables(input_table, update_table)
+
 	# Check tax entries
-	fix_tax(input_table, update_table, taxnodes, specialization)
+	set_tax_tables(input_table, update_table, taxnodes)
+
+	# Check specialiation and add to taxnodes
+	if specialization:
+		set_specialization_tax(input_table, update_table, taxnodes, specialization)
 
 	if input_table.empty or (update_file and update_table.empty):
 		print_log("No entries to process")
 		return False
 
 	if not update_table.empty:
-		groups_bins = process_update_table(update_table, taxnodes, specialization, sequences, seqids)
+		groups_bins = process_update_table(update_table, taxnodes, specialization, sequences)
 		
 		number_of_bins = len(groups_bins)
 		
@@ -134,21 +146,8 @@ def pack(bin_exclusive: str=None,
 		set_leaf_bins(groups_bins, taxnodes)
 
 	
-	groups = process_input_table(input_table, taxnodes, specialization, sequences, seqids)
-	del input_table
-
-	#number_of_bins = 0
-	# if update_file:
-	#	groups_bins = parse_input(update_file, taxnodes, specialization, sequences, control_seqid, bins=True)
-	#	number_of_bins = len(groups_bins)
-	#	# join sequences in the bins
-	#	for binid, group_bin in groups_bins.items(): 
-	#		group_bin.join()
-	#		if bin_exclusive and len(group_bin.get_leaves())>1:
-	#			print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
-	#	# join pre-clustered groups by their LCA or unique leaf
-	#	set_leaf_bins(groups_bins, taxnodes)
-	# groups = parse_input(input_file, taxnodes, specialization, sequences, control_seqid, bins=False)
+	groups = process_input_table(input_table, taxnodes, specialization, sequences)
+	del input_table, update_table
 
 	if not groups:
 		print_log("No entries to cluster")
@@ -171,7 +170,6 @@ def pack(bin_exclusive: str=None,
 		blen = max([g.get_length() for g in groups.values()])
 
 	# Pre-clustering
-
 	if pre_cluster: pre_cluster_groups(pre_cluster, groups, taxnodes, specialization)
 
 	# cluster
@@ -265,15 +263,11 @@ def set_leaf_bins(groups_bins, taxnodes):
 		del groups_bins[binid]
 
 
-def process_input_table(input_table, taxnodes, specialization, sequences, seqids: set=None):
+def process_input_table(input_table, taxnodes, specialization, sequences: set=None):
 	
 	groups = defaultdict(Group)
 
 	for index, row in input_table.iterrows():
-
-		if seqids and row['seqid'] in seqids:
-			print_log("[" + row['seqid'] + "] skipped - duplicated sequence identifier")
-			continue
 
 		# keep sequence information
 		sequences[row['seqid']] = Sequence(row['length'], row['taxid'], row['specialization'], None)
@@ -285,13 +279,10 @@ def process_input_table(input_table, taxnodes, specialization, sequences, seqids
 
 	return groups
 
-def process_update_table(update_table, taxnodes, specialization, sequences, seqids):
+def process_update_table(update_table, taxnodes, specialization, sequences):
 	groups = defaultdict(Group)
 
 	for index, row in update_table.iterrows():
-		# add to control set
-		seqids.add(row['seqid'])
-
 		row['seqid'] = make_unique_seqid(row['seqid'], row["seqstart"], row["seqend"])
 
 		# keep sequence information
@@ -305,15 +296,37 @@ def process_update_table(update_table, taxnodes, specialization, sequences, seqi
 
 	return groups
 
-def fix_tax(input_table, update_table, taxnodes, specialization):
-	
-	taxids_not_found = set()
+def check_tables(input_table, update_table):
+	duplicated_input_idx = input_table.seqid.duplicated()
+	if duplicated_input_idx.any():
+		print_log("skipped duplicated entries: ")
+		print_log(", ".join(input_table[duplicated_input_idx].seqid))	
+		# drop duplicated input
+		input_table.drop(input_table[duplicated_input_idx].index, inplace=True)
+
+	if not update_table.empty:
+		# Do not check for duplicates on update (slip sequences)
+		# check for repeated entries on the input/update - remove from input
+		repeated_entries_idx = input_table["seqid"].isin(update_table["seqid"])
+		if repeated_entries_idx.any():
+			#drop repeated
+			print_log("skipped repeated entries: ")
+			print_log(", ".join(input_table[repeated_entries_idx].seqid))	
+			# drop duplicated input
+			input_table.drop(input_table[repeated_entries_idx].index, inplace=True)
+
+def set_tax_tables(input_table, update_table, taxnodes):
+	# Verify taxonomic entries from the input and taxonomy provided
+
+	# Get unique_taxids from all inputs
 	if not update_table.empty:
 		unique_taxids = pd.unique(pd.concat([input_table.taxid,update_table.taxid]))
 	else:
 		unique_taxids = pd.unique(input_table.taxid)
 
+	# Check taxid in nodes and merged
 	merged_nodes = {}
+	taxids_not_found = set()
 	for txid in unique_taxids:
 		if not taxnodes.get_parent(txid): 
 			m = taxnodes.get_merged(txid)
@@ -324,35 +337,59 @@ def fix_tax(input_table, update_table, taxnodes, specialization):
 				print_log("outdated taxid (old: "+txid+" -> new: "+m+")")
 				merged_nodes[txid] = m
 
-	input_table["taxid"] = input_table["taxid"].apply(lambda txid: merged_nodes[txid] if txid in merged_nodes else txid)
+	# Print invalidated entries
+	if taxids_not_found:
+		print_log("skipped entries without valid taxid: ")
+		print_log(", ".join(input_table[input_table["taxid"].isin(taxids_not_found)].seqid))
+		if not update_table.empty:
+			print_log(", ".join(update_table[update_table["taxid"].isin(taxids_not_found)].seqid))
+		
+	# Drop entries without tax
 	input_table.drop(input_table[input_table["taxid"].isin(taxids_not_found)].index, inplace=True)
+	# Apply merged nodes
+	for old_txid, new_txid in merged_nodes.items():
+		input_table.loc[input_table["taxid"]==old_txid,'taxid'] = new_txid
 	
+	# For update table
 	if not update_table.empty:
+		# Drop entries without tax
 		update_table.drop(update_table[update_table["taxid"].isin(taxids_not_found)].index, inplace=True)
-		update_table["taxid"] = update_table["taxid"].apply(lambda txid: merged_nodes[txid] if txid in merged_nodes else txid)
+		# Apply merged nodes
+		for old_txid, new_txid in merged_nodes.items():
+			update_table.loc[update_table["taxid"]==old_txid,'taxid'] = new_txid
+		
+def set_specialization_tax(input_table, update_table, taxnodes, specialization):
+	# Set specialiation to taxnodes, dropping inconsistent entries
 
-	if specialization:
+	# Get unique specialization (taxid + spec) from all inputs
+	if not update_table.empty:
+		unique_spec = pd.concat([input_table[["taxid","specialization"]],update_table[["taxid","specialization"]]]).drop_duplicates()
+	else:
+		unique_spec = input_table[["taxid","specialization"]].drop_duplicates()
+
+	#Check if specialization has duplicates
+	idx_duplicated = unique_spec.specialization.duplicated()
+	if idx_duplicated.any():
+		for index, row in unique_spec[idx_duplicated].iterrows():
+			print_log("specialization assigned to multiple taxids ("+row["taxid"]+","+row["specialization"]+"), just first taxid-specialization linking will be kept")
+		
+		invalid_input_table_idx = input_table[["taxid","specialization"]].isin(unique_spec[idx_duplicated]).all(axis=1)
+		# Print invalidated entries
+		print_log("skipped entries without valid specialization: ")
+		print_log(", ".join(input_table[invalid_input_table_idx].seqid))
+		# Drop duplicated entries from table
+		input_table.drop(input_table[invalid_input_table_idx].index, inplace=True)
 
 		if not update_table.empty:
-			unique_spec = pd.concat([input_table[["taxid","specialization"]],update_table[["taxid","specialization"]]]).drop_duplicates()
-		else:
-			unique_spec = input_table[["taxid","specialization"]].drop_duplicates()
+			invalid_update_table_idx = update_table[["taxid","specialization"]].isin(unique_spec[idx_duplicated]).all(axis=1)
+			# Print invalidated entries
+			print_log(", ".join(update_table[invalid_update_table_idx].seqid))
+			# Drop duplicated entries from table
+			update_table.drop(update_table[invalid_update_table_idx].index, inplace=True)
 
-		#Check if specialization has duplicates
-		idx_duplicated = unique_spec.specialization.duplicated()
-		if idx_duplicated.any():
-			for index, row in unique_spec[idx_duplicated].iterrows():
-				print_log("specialization assigned to multiple taxids ("+row["taxid"]+","+row["specialization"]+"), just first taxid-specialization linking will be kept")
-			# Drop duplicated entries fron tables
-			input_table.drop(input_table[input_table[["taxid","specialization"]].isin(unique_spec[idx_duplicated]).all(axis=1)].index, inplace=True)
-			if not update_table.empty:
-				update_table.drop(update_table[update_table[["taxid","specialization"]].isin(unique_spec[idx_duplicated]).all(axis=1)].index, inplace=True)
-	
-		# Add to taxnodes valid entries (not duplicated)
-		for index, row in unique_spec[~idx_duplicated].iterrows():
-			taxnodes.add_node(row['taxid'], row['specialization'], specialization) #add taxid as parent, specialization as rank
-
-
+	# Add to taxnodes valid entries (not duplicated)
+	for index, row in unique_spec[~idx_duplicated].iterrows():
+		taxnodes.add_node(row['taxid'], row['specialization'], specialization) #add taxid as parent, specialization as rank
 
 def fragment_groups(groups, sequences, fragment_len, overlap_len):
 	# it will separate into clusters sequences already together
@@ -480,7 +517,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 	if output_file!=sys.stdout: output_file.close()
 
 def print_log(text):
-	sys.stderr.write(text+"\n")
+	if not _taxsbp_silent: sys.stderr.write(text+"\n")
 
 def split_unique_seqid(unique_seqid):
 	i, pos = unique_seqid.split("/")
