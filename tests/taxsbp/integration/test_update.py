@@ -42,7 +42,7 @@ class TestUpdate(unittest.TestCase):
         # Join update file on output
         mergedf = pd.concat([updf,outf], ignore_index=True)
         # sanity check should not pass
-        self.assertFalse(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
+        self.assertTrue(sanity_check(cfg, inf, mergedf, missing_entries=1), "Input/Output files are inconsistent")
         # specific test
         self.assertTrue(mergedf.shape[0]<=inf.shape[0], "Did not skip missing nodes")
     
