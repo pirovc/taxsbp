@@ -301,7 +301,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, 
 
 				# Define leaf
 				if bins:
-					leaf = str(binid) # str to no conflict with taxids
+					leaf = binid # as int, taxid as str
 				elif specialization:
 					leaf = spec
 				else:
