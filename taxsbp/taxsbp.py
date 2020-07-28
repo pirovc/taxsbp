@@ -37,6 +37,8 @@ from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
 
+_taxsbp_silent = True
+
 def main(arguments: str=None):
 
 	if arguments is not None: sys.argv=arguments
@@ -54,6 +56,7 @@ def main(arguments: str=None):
 	parser.add_argument('-e','--bin-exclusive', metavar='<bin_exclusive>', dest="bin_exclusive", type=str, default="", help="Make bins rank/taxid/specialization exclusive, so bins won't have mixed sequences. When the chosen rank is not present on a sequence lineage, this sequence will be taxid/specialization exclusive. [none,specialization name,taxid,species,genus,...] Default: none")
 	parser.add_argument('-s','--specialization', metavar='<specialization>', dest="specialization", type=str, default="", help="Specialization name (e.g. assembly, strain). If given, TaxSBP will cluster entries on a specialized level after the taxonomic id. The specialization identifier should be provided as an extra collumn in the input_file ans should respect the taxonomic hiercharchy (one taxid -> multiple specializations / one specialization -> one taxid). Default: ''")
 	parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated files to be updated. Default: ''")
+	parser.add_argument('-t','--silent', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
 	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.0.0')
 
 	if len(sys.argv)<=1: # Print help calling script without parameters
@@ -76,7 +79,11 @@ def pack(bin_exclusive: str=None,
 		output_file: str=None,
 		pre_cluster: str=None,
 		specialization: str=None,
-		update_file: str=None):
+		update_file: str=None,
+		silent: bool=True):
+
+	global _taxsbp_silent
+	_taxsbp_silent = silent
 
 	if not output_file: output_file = sys.stdout
 
@@ -264,7 +271,9 @@ def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, 
 				 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
 				 	continue
 
-				# add entry
+				# add entry before other checks
+				# when parsing bins, do not ignore the ones with failing tax/spec
+				# since they have to be kept
 				control_seqid.add(seqid)
 
 				if not taxnodes.get_parent(taxid): 
@@ -292,7 +301,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, 
 
 				# Define leaf
 				if bins:
-					leaf = str(binid) # str to no conflict with taxids
+					leaf = binid # as int, taxid as str
 				elif specialization:
 					leaf = spec
 				else:
@@ -356,7 +365,7 @@ def pre_cluster_groups(pre_cluster_rank, groups, taxnodes, specialization):
 		lineage_merge = defaultdict(set)
 		for leaf in groups:
 			t = leaf
-			lin = []	
+			lin = []
 			while t!="1": # runs the tree until finds the chosen rank and save it on the target taxid (taxid from the rank chosen)
 				if taxnodes.get_rank(t)==pre_cluster_rank:
 					# union is necessary because many taxids will have the same path and all of them should be united in one taxid
@@ -432,7 +441,7 @@ def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization
 	if output_file!=sys.stdout: output_file.close()
 
 def print_log(text):
-	sys.stderr.write(text+"\n")
+	if not _taxsbp_silent: sys.stderr.write(text+"\n")
 
 def split_unique_seqid(unique_seqid):
 	i, pos = unique_seqid.split("/")

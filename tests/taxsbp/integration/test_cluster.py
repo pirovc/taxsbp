@@ -33,7 +33,7 @@ class TestCluster(unittest.TestCase):
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
         # sanity check should not pass
-        self.assertFalse(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+        self.assertTrue(sanity_check(cfg, inf, outf, missing_entries=3), "Input/Output files are inconsistent")
         # specific test
         self.assertTrue(outf.shape[0]<=inf.shape[0], "Did not skip missing nodes")
     
