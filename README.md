@@ -8,7 +8,7 @@ Implementation of the approximation algorithm for the hierarchically structured 
 
 ## Installation
 
-```sh
+```shh
 conda -c bioconda -c conda-forge taxsbp
 ```
 or [manual installation](#manual-installation) without conda
@@ -196,7 +196,7 @@ Clusters of size 150. Fragment inputs in 50 with overlap of 5. Cluster exclusive
 
 </details>
 
-## Example with real data:
+## Examples with real data:
 
 ### Prepare data:
 
@@ -262,11 +262,11 @@ $ taxsbp -h
 - python>=3.4
 - [binpacking](https://pypi.org/project/binpacking/)==1.4.3
 - [pylca](https://github.com/pirovc/pylca)==1.0.0
-- [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0
+- [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0 (tests only)
 
 ### Pylca:
 
-```sh
+```shh
 git clone https://github.com/pirovc/pylca
 cd pylca
 python setup.py install
@@ -274,22 +274,17 @@ python setup.py install
 
 ### TaxSBP + binpacking:
 
-```sh
+```shh
 git clone https://github.com/pirovc/taxsbp.git
 cd taxsbp
 python setup.py install
 taxsbp -h
 ```
 
-### pandas:
+### Testing:
 
-```sh
+```shh
 pip install "pandas>=0.22.0"
-```
-
-## Testing:
-
-```sh
 cd taxsbp
 python3 -m unittest discover -s tests/taxsbp/integration/
 ```
