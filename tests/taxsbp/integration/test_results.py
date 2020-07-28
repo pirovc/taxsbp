@@ -80,7 +80,6 @@ class TestResults(unittest.TestCase):
         cfg.update_file=self.base_dir+"data/bins_M-L_tax_spec_missing.tsv"
         cfg.specialization="spec"
         cfg.bin_len=200
-        cfg.silent=False
 
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
