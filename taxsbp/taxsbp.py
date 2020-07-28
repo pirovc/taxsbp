@@ -104,35 +104,27 @@ def pack(bin_exclusive: str=None,
 	sequences = {}
 	# keep track of sequences read
 	control_seqid = set()
+	groups = defaultdict(Group)
 
 	number_of_bins = 0
 	if update_file:
-		groups_bins = parse_input(update_file, taxnodes, specialization, sequences, control_seqid, bins=True)
-		number_of_bins = len(groups_bins)
-		
+		# Parse update file to groups/sequences grouping sequences by their binid
+		parse_input(update_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
+		number_of_bins = len(groups)
 		# join sequences in the bins
-		for binid, group_bin in groups_bins.items(): 
+		for binid, group_bin in groups.items(): 
 			group_bin.join()
 			if bin_exclusive and len(group_bin.get_leaves())>1:
 				print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
+		# replace bin id of groups by their LCA or unique leaf
+		set_leaf_bins(groups, taxnodes)
 
-		# join pre-clustered groups by their LCA or unique leaf
-		set_leaf_bins(groups_bins, taxnodes)
-
-
-	groups = parse_input(input_file, taxnodes, specialization, sequences, control_seqid, bins=False)
+	# Parse input files and add to groups/sequences
+	parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=False)
 
 	if not groups:
 		print_log("No entries to cluster")
 		return False
-
-	# fragment input
-	fragment_groups(groups, sequences, fragment_len, overlap_len)
-
-	# merge bins to current groups
-	if update_file: 
-		#  add new sequences to the current bins
-		for g in groups_bins: groups[g].merge(groups_bins[g])
 
 	# Define bin length
 	if bin_len: # user defined
@@ -236,7 +228,7 @@ def set_leaf_bins(groups_bins, taxnodes):
 		del groups_bins[binid]
 
 
-def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, bins: bool=False):
+def parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins: bool=False):
 	# Parser for input_file or update_file
 	#input_file: 0:SEQID 1:LENGTH 2:TAXID [3:SPECIALIZATION] 
 	#update_file: 0:SEQID 1:SEQSTART 2:SEQEND 3:LENGTH 4:TAXID 5:BINID [6:SPECIALIZATION]
@@ -254,7 +246,7 @@ def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, 
 		fields_pos["taxid"] = 2
 		fields_pos["specialization"] = 3
 
-	groups = defaultdict(Group)
+	
 	with open(input_file,'r') as file:
 		for line in file:
 			try:
@@ -288,73 +280,52 @@ def parse_input(input_file, taxnodes, specialization, sequences, control_seqid, 
 				if specialization:
 					s = taxnodes.get_parent(spec)
 					if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
-						print_log("[" + seqid + "] skipped - specialization assigned to multiple taxids, just first taxid-group linking will be considered (" + str(s) + ":" + spec + ")")
+						print_log("[" + seqid + "] skipped - specialization assigned to multiple leaves, just first leaf-group linking will be considered (" + str(s) + ":" + spec + ")")
 						continue
 					# update taxonomy
 					taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
 
-				# generate unique_seqid
-				if bins: seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
-
-				# keep sequence information
-				sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
-
+				leaf = spec if specialization else taxid
 				# Define leaf
 				if bins:
-					leaf = binid # as int, taxid as str
-				elif specialization:
-					leaf = spec
+					seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
+					sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
+					# Use binid as groupid
+					groups[binid].add_cluster(leaf, seqid,seqlen)
 				else:
-					leaf = taxid
-
-				# Add sequence as cluster and relative leaf nodes
-				groups[leaf].add_cluster(spec if specialization else taxid, seqid,seqlen)
-
+					# Fragment input, add to sequences and clusters
+					groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
+				
 			except Exception as e:
 				print_log(e)
 
-	return groups
+def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_len, sequences):
+	frag_clusters = []
+	
+	nfrags = 0
+	if fragment_len>0: # If fragramentation is required
+		nfrags = math.ceil(seqlen / fragment_len) # number of fragments
 
-def fragment_groups(groups, sequences, fragment_len, overlap_len):
-	# it will separate into clusters sequences already together
+	if nfrags:
+		for i in range(nfrags): #range i=0..nfrags
+			frag_start = (fragment_len*i) + 1 # +1 to start counting sequence at 1
+			# if current fragment + overlap is smaller than the total seqlen
+			if (fragment_len*(i+1))+overlap_len <= seqlen:
+				fraglen = fragment_len+overlap_len # full fragment
+			else:
+				fraglen = seqlen - (fragment_len*i) # shorted last fragment
+				if fraglen<=overlap_len and i>=1: continue # if last fragment is smaller than overlap and its not the first (fraglen<overlap_len)already covered in the last fragment), skip
+			frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
+			fragid=make_unique_seqid(seqid,frag_start,frag_end)
+			frag_clusters.append(Cluster(fragid,fraglen)) # create cluster for fragment
+			sequences[fragid] = Sequence(fraglen, taxid, specialization, None)
+	else:
+		fraglen=seqlen
+		fragid=seqid+"/1:"+str(seqlen)
+		frag_clusters.append(Cluster(fragid,fraglen))
+		sequences[fragid] = Sequence(fraglen, taxid, specialization, None)
 
-	for leaf,group in groups.items():
-		frag_clusters = []
-		frag_group = Group()
-		for cluster in group.get_clusters():
-			for seqid, seqlen in cluster.get_seqlen().items():
-				nfrags = 0
-				if fragment_len>0: # If fragramentation is required
-					nfrags = math.ceil(seqlen / fragment_len) # number of fragments
-
-				if nfrags:
-					fragid = ""
-					fraglen = 0
-					for i in range(nfrags): #range i=0..nfrags
-						frag_start = (fragment_len*i) + 1 # +1 to start counting sequence at 1
-						
-						# if current fragment + overlap is smaller than the total seqlen
-						if (fragment_len*(i+1))+overlap_len <= seqlen:
-							fraglen = fragment_len+overlap_len # full fragment
-						else:
-							fraglen = seqlen - (fragment_len*i) # shorted last fragment
-							if fraglen<=overlap_len and i>=1: continue # if last fragment is smaller than overlap and its not the first (fraglen<overlap_len)already covered in the last fragment), skip
-						
-						frag_end = frag_start + fraglen - 1 # -1 offset to count sequences
-						fragid=make_unique_seqid(seqid,frag_start,frag_end)
-						
-
-						frag_clusters.append(Cluster(fragid,fraglen)) # create cluster for fragment
-						# update sequence entry
-						sequences[fragid] = Sequence(fraglen, sequences[seqid].taxid, sequences[seqid].specialization, sequences[seqid].binid)
-				else:
-					fraglen=seqlen
-					fragid=seqid+"/1:"+str(seqlen)
-					frag_clusters.append(Cluster(fragid,fraglen))
-					sequences[fragid] = Sequence(fraglen, sequences[seqid].taxid, sequences[seqid].specialization, sequences[seqid].binid)
-			del sequences[seqid] # delete from sequences
-		frag_group.add_clusters(group.get_leaves(), frag_clusters)
-		groups[leaf] = frag_group #overwrite group
+	return frag_clusters
 
 def pre_cluster_groups(pre_cluster_rank, groups, taxnodes, specialization):	
 	# if pre-cluster is only by taxid or specialization (leaves), only last step is needed
