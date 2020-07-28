@@ -46,6 +46,49 @@ class TestResults(unittest.TestCase):
 	        unique_binid = outf[["binid","specialization" if bin_exclusive=="spec" else "taxid"]].drop_duplicates()
 	        # bin ids should be uniquely matched (not mixed)
 	        self.assertEqual(unique_binid.shape[0], unique_binid.binid.max()+1, "Bins are not rank exclusive")
+    
+    def test_invalid_specialization(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_invalid_specialization.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo_duplicated_spec.tsv"
+        cfg.specialization="spec"
+        cfg.bin_len=200
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf, missing_entries=3), "Input/Output files are inconsistent")
+        # specific check - no duplicated specialization per taxid
+        unique_taxid_spec = outf[["taxid","specialization"]].drop_duplicates()
+        self.assertFalse(unique_taxid_spec.specialization.duplicated().any(), "Invalid specialization")
+
+    def test_tax_missing(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_tax_missing.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo_missing_tax.tsv"
+        cfg.bin_len=200
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, outf, missing_entries=3), "Input/Output files are inconsistent")
+
+    def test_tax_spec_missing_update(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_tax_spec_missing_update.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo_missing_tax.tsv"
+        cfg.update_file=self.base_dir+"data/bins_M-L_tax_spec_missing.tsv"
+        cfg.specialization="spec"
+        cfg.bin_len=200
+        cfg.silent=False
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        #updf = parse_output(cfg.update_file)
+        # Join update file on output
+        #mergedf = pd.concat([updf,outf], ignore_index=True)
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, outf, missing_entries=12), "Input/Output files are inconsistent")
 
 if __name__ == '__main__':
     unittest.main()
