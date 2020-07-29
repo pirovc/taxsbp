@@ -113,7 +113,7 @@ def pack(bin_exclusive: str=None,
 		number_of_bins = len(groups)
 		# join sequences in the bins
 		for binid, group_bin in groups.items(): 
-			group_bin.join()
+			group_bin.join_clusters()
 			if bin_exclusive and len(group_bin.get_leaves())>1:
 				print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
 		# replace bin id of groups by their LCA or unique leaf
@@ -138,78 +138,77 @@ def pack(bin_exclusive: str=None,
 	if pre_cluster: pre_cluster_groups(pre_cluster, groups, taxnodes, specialization)
 
 	# cluster
-	final_bins = cluster(groups, taxnodes, blen, bin_exclusive, specialization)
+	cluster(groups, taxnodes, blen, bin_exclusive, specialization)
 
+	set_bins(groups)
 	# sort by bin size
-	final_bins.sort(key=lambda tup: tup[0], reverse=True)
+	#final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-	print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file)
+	print_results2(groups, taxnodes, sequences, specialization, output_file)
+	#print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file)
 
 	return True
 
 def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
+	#import pdb; pdb.set_trace()
 	# parent->children structure for fast loookup, only for used taxids 
 	children = taxnodes.build_children(groups.keys())
 
 	# bin_exclusive mode
-	if bin_exclusive:
-		final_bins = []			
+	if bin_exclusive:	
 		rank_taxids, orphan_taxids = get_rank_taxids(groups, taxnodes, bin_exclusive, specialization)
 		if rank_taxids:
 			# clustering directly on the rank chosen, recursion required for children nodes
 			for rank_taxid in rank_taxids:
-				final_bins.extend(ApproxSBP(rank_taxid, groups, children, bin_len))
+				ApproxSBP(rank_taxid, None, groups, children, bin_len)
 		if orphan_taxids:
 			# clustering directly on the taxid level, no recursion to children nodes necessary
 			for orphan_taxid in orphan_taxids:
-				final_bins.extend(bpck(groups[orphan_taxid].get_clusters_bpck(), bin_len))
+				bpck(groups, orphan_taxid, None, bin_len)
 
 	else: # default mode
-		final_bins = ApproxSBP("1", groups, children, bin_len)
-		
-	return final_bins	
-	
-def sum_tuple_ids(bin):
-	sum_length = 0
-	ids = []
-	for i in bin:
-		sum_length+=i[0]
-		ids.extend(i[1:])
-	return sum_length, ids
+		ApproxSBP("1", None, groups, children, bin_len)
 
 # Input: list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Output: bin packed list of tuples [(seqlen, seqid1 [, ..., seqidN])]
 # Returns multi-valued tuple: first [summed] length summed followed by the id[s]
-def bpck(d, bin_len): 
-	# Only one bin, no need to pack
-	if len(d)==1: return d
+def bpck(groups, node, parent, bin_len): 
+	# Only one bin, no need to pack and return directly
+	print("------------------------------------")
+	print("Node: ", node, "Parent: ", parent)
+	print("input", node, groups[node])
+	if groups[node].get_cluster_count()==1:
+		groups[parent].merge(groups[node])
 	else:
-		ret = []
-		for bin in binpacking.to_constant_volume(d, bin_len, weight_pos=0):
-			if bin: #Check if the returned bin is not empty: it happens when the bin packing algorith cannot divide larger sequences
-				# Convert the bin listed output to tuple format
-				sum_length, ids = sum_tuple_ids(bin)
-				ret.append((sum_length,) + tuple(ids)) # ret.append((sum_length,*ids)) 
-
-		return ret
-
-def ApproxSBP(v, groups, children, bin_len):
-	ch = children[v]
+		print("input_bpck:", groups[node].get_clusters_to_bpck())
+		print()
+		clusters = binpacking.to_constant_volume(groups[node].get_clusters_to_bpck(), bin_len, weight_pos=0)
+		print("output_bpck: ", clusters)
+		print()
+		if clusters:
+			groups[parent].add_clusters_from_bpck(clusters, leaves=groups[node].get_leaves())
+			
+	del groups[node]
+	print("output ", parent, groups[parent])
+	print("------------------------------------")
 	
-    # If it doesn't have any children it's a leaf and should return the packed sequences
-	if not ch: return bpck(groups[v].get_clusters_bpck(), bin_len)
+def ApproxSBP(node, parent, groups, children, bin_len):
+	#import pdb; pdb.set_trace()
+	ch = children[node]
 
-	# Recursively bin pack children
-	# Sort children to keep it more consistent with different versions of the taxonomy (new taxids), str to for groups
-	ret = []
-	for child in sorted(ch, key=str): ret.extend(ApproxSBP(child, groups, children, bin_len))
+    # No children = leaf: pack sequences
+	if not ch: 
+		bpck(groups, node, parent, bin_len)
+		return
 
-	# if current node has sequences assigned to it (but it's not a leaf), add it to the current bin packing (it will first pack with its own children nodes)
-	## QUESTION: should I bin together those sequeneces or "distribute" along its children -- command: ret.update(leaves[v]) -- 
-	if v in groups: ret.extend(bpck(groups[v].get_clusters_bpck(), bin_len))
+	# Recursively bin pack sorted list of children (to get always same results)
+	for child in sorted(ch, key=str): ApproxSBP(child, node, groups, children, bin_len)
 
-	return bpck(ret, bin_len)
-
+	# if current node has sequences directly assigned to is without being leaf
+	if node in groups: 
+		bpck(groups, node, parent, bin_len)
+		return
+	
 def set_leaf_bins(groups_bins, taxnodes):
 	leaves = set()
 	for g in groups_bins.values(): leaves.update(g.get_leaves())
@@ -291,7 +290,7 @@ def parse_input(input_file, groups, taxnodes, specialization, sequences, control
 					seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
 					sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
 					# Use binid as groupid
-					groups[binid].add_cluster(leaf, seqid,seqlen)
+					groups[binid].add_cluster(leaf,seqid,seqlen,binid)
 				else:
 					# Fragment input, add to sequences and clusters
 					groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
@@ -355,7 +354,7 @@ def pre_cluster_groups(pre_cluster_rank, groups, taxnodes, specialization):
 
 	# Pre-cluster leaves by taxid (the ones without the chosen rank will be pre-cluster by its own taxid)
 	for group in groups.values():
-		group.join()
+		group.join_clusters()
 
 def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 	rank_taxids = set()
@@ -372,6 +371,25 @@ def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 		orphan_taxids = set(groups.keys())
 
 	return rank_taxids, orphan_taxids
+
+def set_bins(groups):
+	binids=0
+	for v, group in groups.items():
+		for cluster in group.get_clusters():
+			cluster.set_binid(binids)
+			binids+=1
+
+def print_results2(groups, taxnodes, sequences, specialization, output_file):
+
+	if output_file!=sys.stdout: output_file=open(output_file,"w")
+	for v, group in groups.items():
+		for cluster in group.get_clusters():
+			for t in cluster.get_tuples():
+				seqid= t[1]
+				parsed_seqid, st, en = split_unique_seqid(seqid)
+				seqlen=t[0]
+				print(parsed_seqid, st, en, str(seqlen), sequences[seqid].taxid, str(cluster.binid) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
+	if output_file!=sys.stdout: output_file.close()
 
 def print_results(final_bins, taxnodes, sequences, bin_exclusive, specialization, number_of_bins, output_file):
 
