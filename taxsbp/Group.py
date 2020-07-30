@@ -53,7 +53,7 @@ class Group:
 		if leaves: self.leaves.update(leaves)
 
 	def join_clusters(self):
-		# Join clusters in the group by binid
+		# Join all clusters inside the group, do not join clusters wiht different binids
 		final_clusters = {}
 		for c in self.clusters:
 			if c.binid not in final_clusters: final_clusters[c.binid] = Cluster(binid=c.binid)

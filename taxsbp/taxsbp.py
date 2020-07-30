@@ -104,19 +104,22 @@ def pack(bin_exclusive: str=None,
 	sequences = {}
 	# keep track of sequences read
 	control_seqid = set()
+	# main structure to organize groups and clusters
 	groups = defaultdict(Group)
 
-	number_of_bins = 0
+	n_bins = 0
 	if update_file:
-		# Parse update file to groups/sequences grouping sequences by their binid
-		parse_input(update_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True, allow_merge=allow_merge)
-		number_of_bins = len(groups)
-		# join sequences in the bins
-		for binid, group_bin in groups.items(): 
-			group_bin.join_clusters()
-			if bin_exclusive and len(group_bin.get_leaves())>1:
-				print_log(binid + " bin with more than one assignment. Is the bin_exclusive rank used to update the same used to generate the bins?")
-		# replace bin id of groups by their LCA or unique leaf
+		# Parse update file to groups/sequences 
+		# return grouping by their binid: groups[binid] = Group(...)
+		parse_input(update_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
+		# get number of bins (last bin + 1) 
+		n_bins = max(groups.keys())+1
+		# Join clusters of for each group (they should not be splitted)
+		for binid, group in groups.items(): 
+			group.join_clusters()
+			if bin_exclusive and len(group.get_leaves())>1:
+				print_log(binid + " bin with more than one leaf assignment. Clusters are not bin exclusive.")
+		# replace binid of groups by their LCA or unique leaf
 		set_leaf_bins(groups, taxnodes)
 
 	# Parse input files and add to groups/sequences
@@ -137,6 +140,10 @@ def pack(bin_exclusive: str=None,
 	# Pre-clustering
 	if pre_cluster: pre_cluster_groups(pre_cluster, groups, taxnodes, specialization)
 
+	# Remove binid from clusters to allow them to merge
+	# Don't do it before so they won't be joined together (Group func. join_clusters())
+	if update_file and allow_merge: clear_binids(groups)
+
 	# cluster
 	cluster(groups, taxnodes, blen, bin_exclusive, specialization)
 
@@ -145,7 +152,7 @@ def pack(bin_exclusive: str=None,
 		set_tax(sequences, taxnodes, bin_exclusive)
 
 	# Set binids for groups
-	set_bins(groups, sequences, number_of_bins, allow_merge)
+	set_bins(groups, sequences, n_bins, allow_merge)
 	
 	# sort by bin size
 	#final_bins.sort(key=lambda tup: tup[0], reverse=True)
@@ -217,25 +224,25 @@ def ApproxSBP(node, parent, groups, children, bin_len):
 		bpck(groups, node, parent, bin_len)
 		return
 	
-def set_leaf_bins(groups_bins, taxnodes):
+def set_leaf_bins(groups, taxnodes):
 	leaves = set()
-	for g in groups_bins.values(): leaves.update(g.get_leaves())
+	for g in groups.values(): leaves.update(g.get_leaves())
 	subtree = taxnodes.get_subtree(leaves)
 	L = LCA(subtree)
 
-	for binid in list(groups_bins.keys()):
-		group_leaves = list(groups_bins[binid].get_leaves())
+	for binid in list(groups.keys()):
+		group_leaves = list(groups[binid].get_leaves())
 		if len(group_leaves)>1: # perform if more than one leaf
 			lca_node = L(group_leaves[0], group_leaves[1])
 			for i in range(len(group_leaves)-2): lca_node = L(lca_node, group_leaves[i])
 		else:
 			lca_node = group_leaves[0] #only one taxid
 		
-		groups_bins[lca_node].merge(groups_bins[binid])
-		del groups_bins[binid]
+		groups[lca_node].merge(groups[binid])
+		del groups[binid]
 
 
-def parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins: bool=False, allow_merge: bool=False):
+def parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins: bool=False):
 	# Parser for input_file or update_file
 	#input_file: 0:SEQID 1:LENGTH 2:TAXID [3:SPECIALIZATION] 
 	#update_file: 0:SEQID 1:SEQSTART 2:SEQEND 3:LENGTH 4:TAXID 5:BINID [6:SPECIALIZATION]
@@ -299,7 +306,7 @@ def parse_input(input_file, groups, taxnodes, specialization, sequences, control
 					sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
 					# Use binid as groupid
 					# Do not save binid information if bins can be merged
-					groups[binid].add_cluster(leaf,seqid,seqlen,binid if not allow_merge else None)
+					groups[binid].add_cluster(leaf,seqid,seqlen,binid)
 				else:
 					# Fragment input, add to sequences and clusters
 					groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
@@ -380,21 +387,25 @@ def get_rank_taxids(groups, taxnodes, bin_exclusive, specialization):
 		orphan_taxids = set(groups.keys())
 	return rank_taxids, orphan_taxids
 
+def clear_binids(groups):
+	for group in groups.values():
+		for c in group.get_clusters():
+			c.set_binid(None)
+
 def set_tax(sequences, taxnodes, bin_exclusive):
 	for seqid in sequences:
 		taxid = taxnodes.get_rank_node(sequences[seqid].taxid, bin_exclusive)
 		if taxid!="1": sequences[seqid].taxid = taxid
 
-def set_bins(groups, sequences, number_of_bins, allow_merge):
-
+def set_bins(groups, sequences, n_bins, allow_merge):
 	# Initialize bin count
-	binid=-1 if not number_of_bins else number_of_bins-1
+	binid=-1 if not n_bins else n_bins-1
 	free_binids = set()
 
 	for v, group in groups.items():
 		for cluster in group.get_clusters():
 			#if is updating existing bins
-			if number_of_bins: 
+			if n_bins: 
 				# if merging bins is not allowed
 				if not allow_merge:
 					# If binid is assigned, use it or create new bin
