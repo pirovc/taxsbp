@@ -1,7 +1,7 @@
 import unittest
 import taxsbp.taxsbp
 import pandas as pd
-import os, shutil
+import os, shutil, gzip
 from utils import *
 
 class TestResults(unittest.TestCase):
@@ -15,6 +15,8 @@ class TestResults(unittest.TestCase):
     def setUpClass(self):
         shutil.rmtree(self.results_dir, ignore_errors=True)
         os.makedirs(self.results_dir)
+        decompress_gzip(self.base_dir+"data/20181219_abfv_refseq_cg.tsv.gz")
+        decompress_gzip(self.base_dir+"data/20181219_abfv_refseq_cg_nodes.dmp.gz")
 
     def test_bin_exclusive(self):
         cfg = Config(**self.default_config)
@@ -127,6 +129,17 @@ class TestResults(unittest.TestCase):
         self.assertEqual(sum(outf["binid"]==0), 4, "Merge failed")
         self.assertTrue(outf[outf["binid"]==0]["seqid"].isin(["L","K","M","J"]).all(), "Merge failed")
 
+    def test_real_data(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_real_data.tsv"
+        cfg.input_file=self.base_dir+"data/20181219_abfv_refseq_cg.tsv"
+        cfg.nodes_file=self.base_dir+"data/20181219_abfv_refseq_cg_nodes.dmp"
+        
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
 
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+    
 if __name__ == '__main__':
     unittest.main()

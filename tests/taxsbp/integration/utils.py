@@ -1,4 +1,9 @@
 import pandas as pd
+import gzip, shutil, os
+
+def decompress_gzip(file):
+    with gzip.open(file, 'r') as f_in, open(os.path.splitext(file)[0], 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
 
 def parse_files(cfg):
     inf = parse_input(cfg.input_file)
