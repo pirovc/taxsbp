@@ -27,9 +27,8 @@
 import binpacking
 import argparse
 import sys
-import math
+from math import ceil
 from collections import defaultdict
-from collections import OrderedDict
 from pylca.pylca import LCA
 from taxsbp.Group import Group
 from taxsbp.Cluster import Cluster
@@ -313,7 +312,7 @@ def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_l
 	
 	nfrags = 0
 	if fragment_len>0: # If fragramentation is required
-		nfrags = math.ceil(seqlen / fragment_len) # number of fragments
+		nfrags = ceil(seqlen / fragment_len) # number of fragments
 
 	if nfrags:
 		for i in range(nfrags): #range i=0..nfrags
