@@ -6,9 +6,12 @@ class Cluster:
 
 	def set_binid(self, binid):
 		self.binid = binid
+	
+	def get_binid(self):
+		return self.binid
 
 	def get_tuples(self):
-		return ((self.get_length(),) + tuple(self.get_ids()))
+		return ((self.get_binid(),self.get_length(),) + tuple(self.get_ids()))
 
 	def get_length(self):
 		return self.length

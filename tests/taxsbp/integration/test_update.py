@@ -163,7 +163,8 @@ class TestUpdate(unittest.TestCase):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_bins.tsv"
         cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
-        cfg.bins=12
+        cfg.bins=11
+
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
