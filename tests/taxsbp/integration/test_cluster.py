@@ -121,6 +121,9 @@ class TestCluster(unittest.TestCase):
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
         # specific test - even when possible (bin_len=1300), using bin_exclusive should split the inputs into more bins
         self.assertTrue(outf["binid"].max()>0 , "Bin-exclusive clustering failed")
+        unique_binid = outf[["binid","taxid"]].drop_duplicates()
+        self.assertEqual(unique_binid.shape[0], unique_binid.binid.max()+1, "Bins are not rank exclusive")
+    
 
     def test_bins(self):
         cfg = Config(**self.default_config)

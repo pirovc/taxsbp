@@ -89,5 +89,44 @@ class TestResults(unittest.TestCase):
         # sanity check - fails because some sequences are invalidated
         self.assertTrue(sanity_check(cfg, inf, outf, missing_entries=12), "Input/Output files are inconsistent")
 
+    def test_update_not_merging_bins(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_update_merging_bins.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LKM.tsv"
+        cfg.bin_len=200
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        updf = parse_output(cfg.update_file)
+        # Join update file on output
+        mergedf = pd.concat([updf,outf], ignore_index=True)
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
+        
+        # specific check - binid 0 and 1 have to have 2 sequences each
+        self.assertEqual(sum(mergedf["binid"]==0), 2, "Update failed")
+        self.assertEqual(sum(mergedf["binid"]==1), 2, "Update failed")
+
+    def test_update_merging_bins(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_update_merging_bins.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LKM.tsv"
+        cfg.bin_len=400
+        # Output is complete when using allow_merge
+        cfg.allow_merge=True
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+    
+        # specific check - binid 0 is updated with contents from bin 1
+        self.assertEqual(sum(outf["binid"]==0), 4, "Merge failed")
+        self.assertTrue(outf[outf["binid"]==0]["seqid"].isin(["L","K","M","J"]).all(), "Merge failed")
+
+
 if __name__ == '__main__':
     unittest.main()

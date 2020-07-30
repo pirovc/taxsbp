@@ -23,7 +23,6 @@ def sanity_check(cfg, inf, outf, missing_entries: int=0):
         print("Output file is empty")
         return False
 
-
     if not missing_entries:
         if cfg.overlap_len:
             # Evaluate seqid and lengths separetely
@@ -66,7 +65,8 @@ class Config():
         pre_cluster: str=None,
         specialization: str=None,
         update_file: str=None,
-        silent: bool=True):
+        silent: bool=True,
+        allow_merge: bool=False):
 
         self.bin_exclusive=bin_exclusive
         self.bin_len=bin_len
@@ -81,3 +81,4 @@ class Config():
         self.specialization=specialization
         self.update_file=update_file
         self.silent=silent
+        self.allow_merge=allow_merge
