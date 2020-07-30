@@ -118,7 +118,7 @@ def pack(bin_exclusive: str=None,
 		for binid, group in groups.items(): 
 			group.join_clusters()
 			if bin_exclusive and len(group.get_leaves())>1:
-				print_log(binid + " bin with more than one leaf assignment. Clusters are not bin exclusive.")
+				print_log(str(binid) + " bin with more than one leaf assignment. Clusters are not bin exclusive.")
 		# replace binid of groups by their LCA or unique leaf
 		set_leaf_bins(groups, taxnodes)
 
