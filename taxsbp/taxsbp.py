@@ -109,13 +109,14 @@ def pack(bin_exclusive: str=None,
 	# main structure to organize groups and clusters
 	groups = defaultdict(Group)
 
-	n_bins = 0
-	if update_file:
+	used_bins = set()
+	if update_file or update_table:
 		# Parse update file to groups/sequences 
 		# return grouping by their binid: groups[binid] = Group(...)
 		parse_input(update_file, update_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
-		# get number of bins (last bin + 1) 
-		n_bins = max(groups.keys())+1
+		# get used bins
+		used_bins = set(groups.keys())
+
 		# Join clusters of for each group (they should not be splitted)
 		for binid, group in groups.items(): 
 			group.join_clusters()
@@ -144,7 +145,7 @@ def pack(bin_exclusive: str=None,
 
 	# Remove binid from clusters to allow them to merge
 	# Don't do it before so they won't be joined together (Group func. join_clusters())
-	if update_file and allow_merge: clear_binids(groups)
+	if (update_file or update_table) and allow_merge: clear_binids(groups)
 
 	# cluster
 	cluster(groups, taxnodes, blen, bin_exclusive, specialization)
@@ -154,7 +155,7 @@ def pack(bin_exclusive: str=None,
 		set_tax(sequences, taxnodes, bin_exclusive)
 
 	# Set binids for groups
-	set_bins(groups, sequences, n_bins, allow_merge)
+	set_bins(groups, sequences, used_bins, allow_merge)
 	
 	# sort by bin size
 	#final_bins.sort(key=lambda tup: tup[0], reverse=True)
@@ -415,15 +416,19 @@ def set_tax(sequences, taxnodes, bin_exclusive):
 		taxid = taxnodes.get_rank_node(sequences[seqid].taxid, bin_exclusive)
 		if taxid!="1": sequences[seqid].taxid = taxid
 
-def set_bins(groups, sequences, n_bins, allow_merge):
+def set_bins(groups, sequences, used_bins, allow_merge):
 	# Initialize bin count
 	update=False
-	if n_bins: # there are already previosly generated bins
-		binid_count=n_bins-1 #place the binid count on last bin
+	free_binids = set()
+	if used_bins: # there are already previously generated bins
+		#place the binid count on last bin
+		binid_count=max(used_bins)
+		# Create a set of free binids in between the last binid
+		free_binids.update(set(range(max(used_bins)+1)).difference(used_bins))
+		# define update mode
 		update=True
 	else:
 		binid_count=-1
-	free_binids = set()
 
 	for v, group in groups.items():
 		for cluster in group.get_clusters():
@@ -437,14 +442,19 @@ def set_bins(groups, sequences, n_bins, allow_merge):
 					if bin_cluster is not None:
 						binid = bin_cluster
 					else:
-						binid_count+=1
-						binid=binid_count
+						# If some binid is free, use it
+						if free_binids:
+							binid = free_binids.pop()
+						else:
+							# create new bin
+							binid_count+=1
+							binid=binid_count
 				else:
 					# check the sequences in the bin and check if any already has a binid
 					existing_binids = set([sequences[seqid].binid for seqid in cluster.get_ids() if sequences[seqid].binid is not None])
 					if not existing_binids: 
-						# If nodes were free from merging, use them
-						if len(free_binids)>0:
+						# If some binid is free, use it
+						if free_binids:
 							binid = free_binids.pop()
 						else:
 							binid_count+=1
@@ -468,7 +478,7 @@ def set_bins(groups, sequences, n_bins, allow_merge):
 			cluster.set_binid(binid)
 
 	if len(free_binids)>0:
-		print_log(", ".join([str(b) for b in free_binids])  + " bins were left empty due to merging")
+		print_log(", ".join([str(b) for b in free_binids])  + " bins were left empty")
 					
 def generate_results(groups, sequences, specialization, allow_merge):
 	for v, group in groups.items():

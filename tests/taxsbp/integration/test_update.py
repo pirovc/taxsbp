@@ -259,6 +259,24 @@ class TestUpdate(unittest.TestCase):
         self.assertEqual(sum(mergedf["binid"]==0), 2, "Update failed")
         self.assertEqual(sum(mergedf["binid"]==1), 2, "Update failed")
 
+    def test_update_missing_bins(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_update_missing_bins.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_missing_binid.tsv"
+        cfg.bin_len=200
+
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        updf = parse_output(cfg.update_file)
+        # Join update file on output
+        mergedf = pd.concat([updf,outf], ignore_index=True)
+        # sanity check - fails because some sequences are invalidated
+        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
+        # specific test - LJ are assigned to binid 4, so output should use bins 0-3 and 5-6
+        self.assertFalse((outf["binid"]==4).any(), "Did not skip used bin")
+        self.assertTrue(outf["binid"].isin([0,1,2,3,5,6]).all(), "Did not reuse bins properly")
+        
     def test_all(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_all.tsv"
