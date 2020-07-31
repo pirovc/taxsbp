@@ -399,18 +399,28 @@ def set_tax(sequences, taxnodes, bin_exclusive):
 
 def set_bins(groups, sequences, n_bins, allow_merge):
 	# Initialize bin count
-	binid=-1 if not n_bins else n_bins-1
+	update=False
+	if n_bins: # there are already previosly generated bins
+		binid_count=n_bins-1 #place the binid count on last bin
+		update=True
+	else:
+		binid_count=-1
 	free_binids = set()
 
 	for v, group in groups.items():
 		for cluster in group.get_clusters():
+			binid=None
 			#if is updating existing bins
-			if n_bins: 
+			if update: 
 				# if merging bins is not allowed
 				if not allow_merge:
 					# If binid is assigned, use it or create new bin
 					bin_cluster=cluster.get_binid()
-					binid = bin_cluster if bin_cluster is not None else binid+1 
+					if bin_cluster is not None:
+						binid = bin_cluster
+					else:
+						binid_count+=1
+						binid=binid_count
 				else:
 					# check the sequences in the bin and check if any already has a binid
 					existing_binids = set([sequences[seqid].binid for seqid in cluster.get_ids() if sequences[seqid].binid is not None])
@@ -419,7 +429,8 @@ def set_bins(groups, sequences, n_bins, allow_merge):
 						if len(free_binids)>0:
 							binid = free_binids.pop()
 						else:
-							binid+=1 
+							binid_count+=1
+							binid=binid_count
 					elif len(existing_binids)==1: # cluster with only one assigned bin
 						binid=existing_binids.pop()
 					else: # more than one bin per cluster
@@ -432,7 +443,9 @@ def set_bins(groups, sequences, n_bins, allow_merge):
 						# set remaining as free
 						free_binids.update(existing_binids) 
 			else: # cluster new file
-				binid+=1
+				binid_count+=1
+				binid=binid_count
+
 			# set bin for cluster
 			cluster.set_binid(binid)
 			
