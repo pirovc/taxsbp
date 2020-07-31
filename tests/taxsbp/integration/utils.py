@@ -1,6 +1,12 @@
 import pandas as pd
 import gzip, shutil, os
 
+def head_file(input_file, output_file, lines):
+    with open(input_file, 'r') as f_in, open(output_file, 'w') as f_out:
+        for cnt,line in enumerate(f_in,1):
+            f_out.write(line)
+            if cnt>=lines: break
+
 def decompress_gzip(file):
     with gzip.open(file, 'r') as f_in, open(os.path.splitext(file)[0], 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
