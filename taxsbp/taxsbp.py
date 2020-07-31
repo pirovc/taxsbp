@@ -28,6 +28,7 @@ import binpacking
 import argparse
 import sys
 from math import ceil
+from io import StringIO
 from collections import defaultdict
 from pylca.pylca import LCA
 from taxsbp.Group import Group
@@ -64,14 +65,16 @@ def main(arguments: str=None):
 
 	args = parser.parse_args() # read sys.argv[1:] by default
 
+	# if calling from cli and no output, set to stdou
+	if not args.output_file: args.output_file=sys.stdout
 	return pack(**vars(args))
-
 
 def pack(bin_exclusive: str=None, 
 		bin_len: int=0, 
 		bins: int=0, 
 		fragment_len: int=0, 
 		input_file: str=None,
+		input_table: str=None,
 		merged_file: str=None,
 		nodes_file: str=None,
 		overlap_len: int=0,
@@ -79,13 +82,12 @@ def pack(bin_exclusive: str=None,
 		pre_cluster: str=None,
 		specialization: str=None,
 		update_file: str=None,
+		update_table: str=None,
 		silent: bool=True,
 		allow_merge: bool=False):
 
 	global _taxsbp_silent
 	_taxsbp_silent = silent
-
-	if not output_file: output_file = sys.stdout
 
 	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
 	
@@ -111,7 +113,7 @@ def pack(bin_exclusive: str=None,
 	if update_file:
 		# Parse update file to groups/sequences 
 		# return grouping by their binid: groups[binid] = Group(...)
-		parse_input(update_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
+		parse_input(update_file, update_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
 		# get number of bins (last bin + 1) 
 		n_bins = max(groups.keys())+1
 		# Join clusters of for each group (they should not be splitted)
@@ -123,7 +125,7 @@ def pack(bin_exclusive: str=None,
 		set_leaf_bins(groups, taxnodes)
 
 	# Parse input files and add to groups/sequences
-	parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=False)
+	parse_input(input_file, input_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=False)
 
 	if not groups:
 		print_log("No entries to cluster")
@@ -157,7 +159,21 @@ def pack(bin_exclusive: str=None,
 	# sort by bin size
 	#final_bins.sort(key=lambda tup: tup[0], reverse=True)
 
-	print_results(groups, sequences, specialization, allow_merge, output_file)
+	# yield a generator for results
+	res = generate_results(groups, sequences, specialization, allow_merge)
+
+	if not output_file:
+		# Call from python without output_file set
+		return [r for r in res]
+	elif output_file==sys.stdout:
+		# call from cli without output_file set
+		for r in res:
+			print(*r, sep="\t")	
+	else:
+		# call with output_file set
+		with open(output_file,"w") as file:
+			for r in res:
+				print(*r, sep="\t", file=file)	
 
 	return True
 
@@ -242,11 +258,11 @@ def set_leaf_bins(groups, taxnodes):
 		del groups[binid]
 
 
-def parse_input(input_file, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins: bool=False):
+def parse_input(file, table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins: bool=False):
 	# Parser for input_file or update_file
 	#input_file: 0:SEQID 1:LENGTH 2:TAXID [3:SPECIALIZATION] 
 	#update_file: 0:SEQID 1:SEQSTART 2:SEQEND 3:LENGTH 4:TAXID 5:BINID [6:SPECIALIZATION]
-	
+
 	fields_pos = {"seqid": 0}
 	if bins:
 		fields_pos["seqstart"] = 1
@@ -260,59 +276,61 @@ def parse_input(input_file, groups, taxnodes, specialization, sequences, control
 		fields_pos["taxid"] = 2
 		fields_pos["specialization"] = 3
 
-	
-	with open(input_file,'r') as file:
-		for line in file:
-			try:
+	if table is not None:
+		inf = StringIO(table)
+	else:
+		inf = open(file,'r')
 
-				fields = line.rstrip().split('\t')
-				seqid = fields[fields_pos["seqid"]]
-				seqlen = int(fields[fields_pos["seqlen"]])
-				taxid = fields[fields_pos["taxid"]]
-				binid = int(fields[fields_pos["binid"]]) if bins else None
-				spec = fields[fields_pos["specialization"]] if specialization else None
+	for line in inf:
+		try:
+			fields = line.rstrip().split('\t')
+			seqid = fields[fields_pos["seqid"]]
+			seqlen = int(fields[fields_pos["seqlen"]])
+			taxid = fields[fields_pos["taxid"]]
+			binid = int(fields[fields_pos["binid"]]) if bins else None
+			spec = fields[fields_pos["specialization"]] if specialization else None
 
-				# if reading main input (after loaded bins), do not add duplicated sequences
-				if not bins and seqid in control_seqid:
-				 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
-				 	continue
+			# if reading main input (after loaded bins), do not add duplicated sequences
+			if not bins and seqid in control_seqid:
+			 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
+			 	continue
 
-				# add entry before other checks
-				# when parsing bins, do not ignore the ones with failing tax/spec
-				# since they have to be kept
-				control_seqid.add(seqid)
+			# add entry before other checks
+			# when parsing bins, do not ignore the ones with failing tax/spec
+			# since they have to be kept
+			control_seqid.add(seqid)
 
-				if not taxnodes.get_parent(taxid): 
-					m = taxnodes.get_merged(taxid)
-					if not m: 
-						print_log("[" + seqid + "] skipped - taxid not found in nodes/merged file")
-						continue
-					else:
-						print_log("[" + seqid + "] outdated taxid (old: "+str(taxid)+" -> new:"+str(m)+")")
-						taxid = m # Get updated version of the taxid from merged.dmp
-				
-				if specialization:
-					s = taxnodes.get_parent(spec)
-					if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
-						print_log("[" + seqid + "] skipped - specialization assigned to multiple leaves, just first leaf-group linking will be considered (" + str(s) + ":" + spec + ")")
-						continue
-					# update taxonomy
-					taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
-
-				leaf = spec if specialization else taxid
-				# Define leaf
-				if bins:
-					seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
-					sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
-					# Use binid as groupid
-					# Do not save binid information if bins can be merged
-					groups[binid].add_cluster(leaf,seqid,seqlen,binid)
+			if not taxnodes.get_parent(taxid): 
+				m = taxnodes.get_merged(taxid)
+				if not m: 
+					print_log("[" + seqid + "] skipped - taxid not found in nodes/merged file")
+					continue
 				else:
-					# Fragment input, add to sequences and clusters
-					groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
-				
-			except Exception as e:
-				print_log(e)
+					print_log("[" + seqid + "] outdated taxid (old: "+str(taxid)+" -> new:"+str(m)+")")
+					taxid = m # Get updated version of the taxid from merged.dmp
+			
+			if specialization:
+				s = taxnodes.get_parent(spec)
+				if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
+					print_log("[" + seqid + "] skipped - specialization assigned to multiple leaves, just first leaf-group linking will be considered (" + str(s) + ":" + spec + ")")
+					continue
+				# update taxonomy
+				taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
+
+			leaf = spec if specialization else taxid
+			# Define leaf
+			if bins:
+				seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
+				sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
+				# Use binid as groupid
+				# Do not save binid information if bins can be merged
+				groups[binid].add_cluster(leaf,seqid,seqlen,binid)
+			else:
+				# Fragment input, add to sequences and clusters
+				groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
+		except Exception as e:
+			print_log(str(e))
+	inf.close()
 
 def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_len, sequences):
 	frag_clusters = []
@@ -448,20 +466,19 @@ def set_bins(groups, sequences, n_bins, allow_merge):
 
 			# set bin for cluster
 			cluster.set_binid(binid)
-			
+
 	if len(free_binids)>0:
 		print_log(", ".join([str(b) for b in free_binids])  + " bins were left empty due to merging")
 					
-def print_results(groups, sequences, specialization, allow_merge, output_file):
-	if output_file!=sys.stdout: output_file=open(output_file,"w")
+def generate_results(groups, sequences, specialization, allow_merge):
 	for v, group in groups.items():
 		for cluster in group.get_clusters():
 			for seqid in cluster.get_ids():
 				# if updating and not merging, do not print older entries
 				if sequences[seqid].binid is not None and not allow_merge: continue
 				parsed_seqid, st, en = split_unique_seqid(seqid)
-				print(parsed_seqid, st, en, sequences[seqid].seqlen, sequences[seqid].taxid, str(cluster.get_binid()) + ("\t" + sequences[seqid].specialization if specialization else ""), sep="\t", file=output_file)
-	if output_file!=sys.stdout: output_file.close()
+				spec = sequences[seqid].specialization if specialization else ""
+				yield [parsed_seqid, st, en, sequences[seqid].seqlen, sequences[seqid].taxid, str(cluster.get_binid()), spec]
 
 def print_log(text):
 	if not _taxsbp_silent: sys.stderr.write(text+"\n")
