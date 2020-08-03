@@ -29,6 +29,24 @@ class TestUpdate(unittest.TestCase):
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
 
+    def test_input_update_table(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_input_update_table.tsv"
+        
+        inf = parse_input(cfg.input_file)
+        cfg.input_table=inf.to_csv(sep="\t",header=False, index=False)
+        cfg.input_file=None
+
+        updf = parse_output(self.base_dir+"data/bins_LJ.tsv")
+        cfg.update_table=updf.to_csv(sep="\t",header=False, index=False)
+
+        # run check
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        outf = parse_output(cfg.output_file)
+        # Join update file on output
+        outf = pd.concat([updf,outf], ignore_index=True)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
 
     def test_nodes_missing(self):
         cfg = Config(**self.default_config)
