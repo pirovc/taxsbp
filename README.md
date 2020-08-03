@@ -4,7 +4,7 @@
 
 [![Build Status](https://travis-ci.org/pirovc/taxsbp.svg?branch=master)](https://travis-ci.org/pirovc/taxsbp) 
 
-Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] based on the NCBI Taxonomy database [2] (uses LCA script from [3]).
+Implementation of the approximation algorithm for the hierarchically structured bin packing problem [1] adapted for the NCBI Taxonomy database [2] (uses LCA script from [3]).
 
 ## Installation
 
@@ -22,6 +22,7 @@ or [manual installation](#manual-installation) without conda
 	`sequence id <tab> sequence length <tab> taxonomic id [ <tab> specialization]`
  
  * nodes.dmp and merged.dmp from NCBI Taxonomy (ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz)
+ * specialization can be used to further cluster sequences by groups beyond the taxonomy (e.g. strain name, assembly accession, ...)
 
 ### Output 
 
@@ -33,11 +34,8 @@ or [manual installation](#manual-installation) without conda
 
 The sample data is comprised of:
 
-	- Root node (1)
-	- hierarchy with 5 levels (rank1-rank5)
-	- Leaf nodes (*)
-	- 8 Specializations (S1-S9)
-	- 13 targets (A-M) with equal length (100) 
+	- hierarchy with 5 levels (rank1-rank5), where the root node is "1" and leaf nodes are marked with a "*"
+	- 8 Specializations (S1-S9) and 13 targets (A-M) with equal length (100) 
 
 	rank-1                   1 ________________
 	                        / \           \    \
@@ -45,7 +43,7 @@ The sample data is comprised of:
 	                      / \    \      \   \    \
 	rank-3             3.1  3.2   3.4    \   \    \
 	                    /   / \     \     \   \    \
-	rank-4          *4.1 *4.2 *4.3   4.4  *4.5 *4.6 \
+	rank-4          *4.1 *4.2 *4.3  *4.4  *4.5 *4.6 \
 	                 /    /   /     / | \   \   \    \
 	rank-5          /    /   / *5.1 *5.2 \   \   \    \
 	               /    /   /     /   |   \   \   \    \
@@ -56,8 +54,6 @@ The sample data is comprised of:
 ### Clusters of size 400
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 400
-
-Clusters are limited by size 400
 
 <details>
   <summary>Results</summary>
@@ -83,7 +79,7 @@ Clusters are limited by size 400
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 400 -p "rank-2"
 
-ABCD (2.1) and EFGHI (2.2) are forced together (even if bigger than 400)
+ * ABCD (2.1) and EFGHI (2.2) are pre-clustered together
 
 <details>
   <summary>Results</summary>
@@ -109,7 +105,7 @@ ABCD (2.1) and EFGHI (2.2) are forced together (even if bigger than 400)
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 400 -e "rank-4"
 
-Clusters are generated for each sub-tree of nodes from rank-4. The used rank is printed instead of the original.
+ * Clusters are generated for each sub-tree of nodes from rank-4. The taxid of the exclusive rank is printed instead of the original.
 
 <details>
   <summary>Results</summary>
@@ -135,7 +131,7 @@ Clusters are generated for each sub-tree of nodes from rank-4. The used rank is 
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 400 -s MySpec -e MySpec
 
-Clusters are exclusive by specialization
+ * Clusters are exclusive by specialization
 
 <details>
   <summary>Results</summary>
@@ -161,7 +157,7 @@ Clusters are exclusive by specialization
 
 	taxsbp.py -i sample_data/seqinfo.tsv -n sample_data/nodes.dmp -l 150 -f 50 -a 5 -e "rank-3"
 
-Clusters of size 150. Fragment inputs in 50 with overlap of 5. Cluster exclusive of "rank-3"
+ * Clusters of size 150. Fragment inputs in 50 with overlap of 5. Cluster exclusive of "rank-3"
 
 <details>
   <summary>Results</summary>
