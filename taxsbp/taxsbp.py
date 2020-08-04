@@ -65,7 +65,7 @@ def main(arguments: str=None):
 
 	args = parser.parse_args() # read sys.argv[1:] by default
 
-	# if calling from cli and no output, set to stdou
+	# if calling from cli and no output, set to stdout
 	if not args.output_file: args.output_file=sys.stdout
 	return pack(**vars(args))
 
@@ -157,9 +157,6 @@ def pack(bin_exclusive: str=None,
 	# Set binids for groups
 	set_bins(groups, sequences, used_bins, allow_merge)
 	
-	# sort by bin size
-	#final_bins.sort(key=lambda tup: tup[0], reverse=True)
-
 	# yield a generator for results
 	res = generate_results(groups, sequences, specialization, allow_merge)
 
@@ -192,26 +189,27 @@ def cluster(groups, taxnodes, bin_len, bin_exclusive, specialization):
 		if orphan_taxids:
 			# clustering directly on the taxid level, no recursion to children nodes necessary
 			for orphan_taxid in orphan_taxids:
-				bpck(groups, orphan_taxid, None, bin_len)
+				bpck(groups, orphan_taxid, orphan_taxid, bin_len)
 
 	else: # default mode
 		ApproxSBP("1", None, groups, children, bin_len)
 
 def bpck(groups, node, parent, bin_len): 
-	# When parent is None, run is at the root
-	# Pack bins and save it in itself
-	if parent is None: parent=node
+	# Perform bin packing on a single node
+	# it packs the clusters on groups[node] and add to groups[parent]
+	# if node and parent are equal, root was reached
+	at_root = True if node==parent else False
 
 	# If there is only one cluster, do not need to pack
 	if groups[node].get_cluster_count()==1:
-		if node!=parent: # transfer cluster to parent if not root
+		if not at_root: # transfer cluster to parent if not root
 			groups[parent].merge(groups[node])
 			del groups[node]
 	else:
 		# Perform bin packing
 		clusters = binpacking.to_constant_volume(groups[node].get_clusters_to_bpck(), bin_len, weight_pos=1)
 		if clusters:
-			if node!=parent: # if not root
+			if not at_root:
 				# Parse clustered results into parent node and remove actual node
 				groups[parent].add_clusters_from_bpck(clusters, leaves=groups[node].get_leaves())
 				del groups[node]
@@ -221,25 +219,15 @@ def bpck(groups, node, parent, bin_len):
 				groups[parent].add_clusters_from_bpck(clusters)
 
 def ApproxSBP(node, parent, groups, children, bin_len):
-	# Recursive function to perform hiearchical bin packing
-
-	# retrieve children nodes from current node
-	ch = children[node]
-
-    # No children = leaf: pack sequences and return
-	if not ch: 
-		bpck(groups, node, parent, bin_len)
-		return
-
+	# Function to perform hiearchical bin packing recursively
 	# Recursively call to pack sorted list of children (to get always same results)
-	for child in sorted(ch, key=str): 
+	for child in sorted(children[node], key=str): 
 		ApproxSBP(child, node, groups, children, bin_len)
-
-	# After all children were packed, pack parent current node into parent
-	# Also packs sequences directly assigned to this node (without being leaf)
-	if node in groups: 
-		bpck(groups, node, parent, bin_len)
-		return
+	else:
+		# If node is a leaf - no child in children[node]
+		# or
+		# After all children of a node were packed in the for loop, pack node itself into parent
+		bpck(groups, node, parent if parent is not None else node, bin_len)
 	
 def set_leaf_bins(groups, taxnodes):
 	leaves = set()
