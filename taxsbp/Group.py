@@ -24,12 +24,18 @@ class Group:
 		self.clusters = []
 
 	def get_clusters_to_bpck(self):
+		# Return list of tuples with the clusters in the format necessary for the binpacking
+		# Format [(binid,length,seq1,seq2,...,seqN),...]
+		# Example: [(0,500,A,B,C),(1,300,D),(None,200,E)]
 		ret = []
 		for c in self.clusters:
 			ret.append(c.get_tuples())
 		return ret
 
 	def add_clusters_from_bpck(self, bpck_clusters, leaves: set=None):
+		# Parse binpacking output - list of lists with tuples generated with get_clusters_to_bpck
+		# Example: [[(0,500,A,B,C)],[(1,300,D),(None,200,E)]]
+
 		# For each cluster returned by binpaking
 		for cluster in bpck_clusters:
 			# split clusters in their respective binid assigned (or None)

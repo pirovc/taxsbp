@@ -34,11 +34,10 @@ class TestResults(unittest.TestCase):
     
     def test_real_data_bin_exclusive(self):
         cfg = Config(**self.default_config)
-        
         cfg.input_file=self.base_dir+"data/20181219_abfv_refseq_cg.tsv"
         cfg.nodes_file=self.base_dir+"data/20181219_abfv_refseq_cg_nodes.dmp"
 
-        for bin_exclusive in ["superkingdom", "phylum","class","order","family","genus", "species", "taxid", "spec"]:
+        for bin_exclusive in ["superkingdom", "phylum","class","order","family","genus", "species", "leaves", "spec"]:
             if bin_exclusive=="spec":
                 cfg.specialization="spec"
             cfg.output_file=self.results_dir+"test_real_data_bin_exclusive_"+bin_exclusive+".tsv"
