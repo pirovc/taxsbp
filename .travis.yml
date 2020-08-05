@@ -1,0 +1,22 @@
+language: python
+python:
+  - "3.4"
+  - "3.5"
+  - "3.6"
+  - "3.7"
+  - "3.8"
+#  - "3.8-dev"
+
+install:
+  - pip install "pandas>=0.22.0"
+  - pip install binpacking==1.4.3
+  - git clone https://github.com/pirovc/pylca.git
+  - cd pylca
+  - python setup.py install
+  - cd ..
+
+script:
+  - python -m unittest discover -s tests/taxsbp/integration/
+
+notifications:
+  email: false
