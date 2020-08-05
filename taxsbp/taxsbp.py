@@ -2,7 +2,7 @@
 
 # The MIT License (MIT)
 # 
-# Copyright (c) 2020 - Vitor C. Pir  - pirovc@posteo.net
+# Copyright (c) 2020 - Vitor C. Piro  - pirovc@posteo.net
 #
 # All rights reserved.
 #
@@ -36,6 +36,8 @@ from taxsbp.Cluster import Cluster
 from taxsbp.TaxNodes import TaxNodes
 from taxsbp.Sequence import Sequence
 
+# Silent option as global, default True
+# Set to false calling from main by default
 _taxsbp_silent = True
 
 def main(arguments: str=None):
@@ -89,10 +91,11 @@ def pack(bin_exclusive: str=None,
 	global _taxsbp_silent
 	_taxsbp_silent = silent
 
-	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
-	
+	# Parse nodes and merge files
 	taxnodes = TaxNodes(nodes_file, merged_file)
-	
+
+	# Check if choosen rank is present
+	special_ranks = ["taxid"] if not specialization else ["taxid", specialization]
 	if pre_cluster and pre_cluster not in special_ranks and not taxnodes.has_rank(pre_cluster):
 		print_log("Rank for pre-clustering not found: " + pre_cluster)
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
@@ -102,27 +105,28 @@ def pack(bin_exclusive: str=None,
 		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
 		return False
 
-	# structure to keep sequence information
+	# Dict of Sequences() to keep input entry information
 	sequences = {}
-	# keep track of sequences read
+	# keep track of sequences ids, used when parsing files and updating
 	control_seqid = set()
-	# main structure to organize groups and clusters
+	# Dict of Group() - main structure to organize groups and clusters
 	groups = defaultdict(Group)
-
+	# Keep track of used bins in case of update
 	used_bins = set()
+
+	# If updating, parse bins files first to detect which sequences are already used
 	if update_file or update_table:
-		# Parse update file to groups/sequences 
 		# return grouping by their binid: groups[binid] = Group(...)
 		parse_input(update_file, update_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
 		# get used bins
 		used_bins = set(groups.keys())
 
-		# Join clusters of for each group (they should not be splitted)
+		# Join clusters inside each group (they should never be splitted because they are already clustered)
 		for binid, group in groups.items(): 
 			group.join_clusters()
 			if bin_exclusive and len(group.get_leaves())>1:
 				print_log(str(binid) + " bin with more than one leaf assignment. Clusters are not bin exclusive.")
-		# replace binid of groups by their LCA or unique leaf
+		# replace binid of groups by their LCA or unique leaf: groups[leaf or LCA] = Group(...)
 		set_leaf_bins(groups, taxnodes)
 
 	# Parse input files and add to groups/sequences
@@ -137,7 +141,7 @@ def pack(bin_exclusive: str=None,
 		blen = bin_len
 	elif bins: # Estimate bin len based on number of requested bins or direct by user
 		blen = sum([g.get_length() for g in groups.values()])/float(bins)
-	else: # Default bin length on the max sequence
+	else: # Default bin length on the max group length
 		blen = max([g.get_length() for g in groups.values()])
 
 	# Pre-clustering
@@ -350,32 +354,17 @@ def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_l
 	return frag_clusters
 
 def pre_cluster_groups(pre_cluster_rank, groups, taxnodes, specialization):	
-	# if pre-cluster is only by taxid or specialization (leaves), only last step is needed
+	# if pre-cluster is only by taxid/specialization (leaves), only last step is needed
 	if pre_cluster_rank!="taxid" and pre_cluster_rank!=specialization: 
-		
-		# For every leaf, identifies the lineage until the chosen rank
-		# If the lineage for the leaf taxid does not have the chosen rank, it will be skipped and pre-cluster by its taxid later
-		lineage_merge = defaultdict(set)
-		for leaf in groups:
-			t = leaf
-			lin = []
-			while t!="1": # runs the tree until finds the chosen rank and save it on the target taxid (taxid from the rank chosen)
-				if taxnodes.get_rank(t)==pre_cluster_rank:
-					# union is necessary because many taxids will have the same path and all of them should be united in one taxid
-					lineage_merge[t] |= set(lin) # union set operator (same as .extend for list), using set to avoid duplicates
-					break 
-				lin.append(t)
-				t = taxnodes.get_parent(t)
-		
-		# Merge classification on leaves to its parents {chosen rank taxid: [children taxids]}
-		for rank_taxid, children_taxids in lineage_merge.items():
-			for child_taxid in children_taxids:
-				if child_taxid in groups:
-					# add the clusters from the children clusters to the parent rank taxid
-					groups[rank_taxid].merge(groups[child_taxid])
-					del groups[child_taxid] # After moving it to the parent, remove it from leaves
-
-	# Pre-cluster leaves by taxid (the ones without the chosen rank will be pre-cluster by its own taxid)
+		# Join groups sharing the same parent node of the chosen rank
+		for leaf in list(groups.keys()):
+			taxid_rank = taxnodes.get_rank_node(leaf, pre_cluster_rank)
+			# If not root (rank not on lineage) and not the same, regroup leaf into parent node
+			if taxid_rank!="1" and taxid_rank!=leaf:
+				groups[taxid_rank].merge(groups[leaf])
+				del groups[leaf] # After moving it to the parent, remove it from leaves
+	
+	# Join clusters grouped together
 	for group in groups.values():
 		group.join_clusters()
 
