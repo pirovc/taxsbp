@@ -20,7 +20,7 @@ setup(
     author="Vitor C. Piro",
     author_email="pirovc@posteo.net",
 
-    description="Implementation of the approximation algorithm for the hierarchically structured bin packing problem based on the NCBI Taxonomy database.",
+    description="Implementation of the approximation algorithm for the hierarchically structured bin packing problem adapted for the NCBI Taxonomy database.",
     long_description=read("README.md"),
 
     packages=['taxsbp'],
