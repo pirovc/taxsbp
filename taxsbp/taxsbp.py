@@ -94,16 +94,15 @@ def pack(bin_exclusive: str=None,
 	# Parse nodes and merge files
 	taxnodes = TaxNodes(nodes_file, merged_file)
 
-	# Check if choosen rank is present
+	# Check if choosen rank is present, otherwise give warning and change to leaves
 	special_ranks = ["leaves"] if not specialization else ["leaves", specialization]
-	if pre_cluster and pre_cluster not in special_ranks and not taxnodes.has_rank(pre_cluster):
-		print_log("Rank for pre-clustering not found: " + pre_cluster)
-		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
-		return False
-	if bin_exclusive and bin_exclusive not in special_ranks and not taxnodes.has_rank(bin_exclusive):
-		print_log("Rank for bin exclusive not found: " + bin_exclusive)
-		print_log("Possible ranks: " + ', '.join(taxnodes.get_ranks()))
-		return False
+	possible_ranks = taxnodes.get_ranks()
+	if pre_cluster and pre_cluster not in special_ranks and pre_cluster not in possible_ranks:
+		print_log("Rank for pre-clustering not found in the taxonomy ("+pre_cluster+"), leaves will be used instead")
+		pre_cluster="leaves"
+	if bin_exclusive and bin_exclusive not in special_ranks and bin_exclusive not in possible_ranks:
+		print_log("Rank for bin exclusive not found in the taxonomy  ("+bin_exclusive+"), leaves will be used instead")
+		bin_exclusive="leaves"
 
 	# Dict of Sequences() to keep input entry information
 	sequences = {}
