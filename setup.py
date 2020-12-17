@@ -26,7 +26,7 @@ setup(
     packages=['taxsbp'],
     install_requires=['binpacking==1.4.3'],
 
-    entry_points = {'console_scripts': ['taxsbp=taxsbp.taxsbp:main']},
+    entry_points = {'console_scripts': ['taxsbp=taxsbp.taxsbp:main_cli']},
 
     classifiers=[
         'License :: OSI Approved :: MIT License',

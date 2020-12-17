@@ -61,7 +61,7 @@ def main(arguments: str=None):
 	parser.add_argument('-t','--silent', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
 	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.1.0')
 
-	if len(sys.argv)<=1: # Print help calling script without parameters
+	if len(sys.argv)==1: # Print help calling script without parameters
 		parser.print_help() 
 		return False
 
@@ -478,5 +478,8 @@ def split_unique_seqid(unique_seqid):
 def make_unique_seqid(seqid, st, en):
 	return seqid+"/"+str(st)+":"+str(en)
 
+def main_cli():
+    sys.exit(0 if main() else 1)
+
 if __name__ == "__main__":
-	main()
+	sys.exit(0 if main() else 1)
