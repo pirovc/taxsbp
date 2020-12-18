@@ -23,7 +23,8 @@ or [manual installation](#manual-installation) without conda
  
  * nodes.dmp and merged.dmp from NCBI Taxonomy (ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz)
  * specialization can be used to further cluster sequences by groups beyond the taxonomy (e.g. strain name, assembly accession, ...)
-
+ * if specialization is set but missing in the file, a placeholder will be used "specialization-sequence id"
+ 
 ### Output 
 
  * A tab-separated file:
