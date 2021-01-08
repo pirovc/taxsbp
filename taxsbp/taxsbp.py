@@ -117,29 +117,20 @@ def pack(bin_exclusive: str=None,
 	if update_file or update_table:
 
 		# Check if specialization is compatible for the update
-		specialization_compatible, specialization_update = check_specialization_update(update_file, update_table, bin_exclusive, specialization)
+		if not check_specialization_update(update_file, update_table, specialization): return False
 
 		# return grouping by their binid: groups[binid] = Group(...)
-		parse_input(update_file, update_table, groups, taxnodes, specialization_update, sequences, control_seqid, fragment_len, overlap_len, bins=True)
+		parse_input(update_file, update_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
 		# get used bins
 		used_bins = set(groups.keys())
 
-		if not specialization_compatible: 
-			if allow_merge:
-				print_log("Merging not allowed with incompatible specialization")
-				return False
-			# remove all clusters loaded from the bins
-			# meaning that bins will not be considered on clustering
-			# still keep track of bin number with used_bins
-			groups = defaultdict(Group)
-		else:
-			# Join clusters inside each group (they should never be splitted because they are already clustered)
-			for binid, group in groups.items(): 
-				group.join_clusters()
-				if bin_exclusive and len(group.get_leaves())>1:
-					print_log("bin (" + str(binid) + ") has more than one leaf assignment (" + ",".join(group.get_leaves()) + "). Clusters are not bin exclusive.")
-			# replace binid of groups by their LCA or unique leaf: groups[leaf or LCA] = Group(...)
-			set_leaf_bins(groups, taxnodes)
+		# Join clusters inside each group (they should never be splitted because they are already clustered)
+		for binid, group in groups.items(): 
+			group.join_clusters()
+			if bin_exclusive and len(group.get_leaves())>1:
+				print_log("bin (" + str(binid) + ") has more than one leaf assignment (" + ",".join(group.get_leaves()) + "). Clusters are not bin exclusive.")
+		# replace binid of groups by their LCA or unique leaf: groups[leaf or LCA] = Group(...)
+		set_leaf_bins(groups, taxnodes)
 
 	# Parse input files and add to groups/sequences
 	parse_input(input_file, input_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=False)
@@ -292,11 +283,11 @@ def parse_input(file, table, groups, taxnodes, specialization, sequences, contro
 		
 		# If specialization is requested 
 		if specialization:
-			# in case a field is missing, use seqid as a unique replacement
-			# it avoids clustering updates in bin_exclusive mode with specializations
 			try:
 				spec = fields[fields_pos["specialization"]]
 			except:
+				# Unique placeholder if specialization not found for some entries
+				# required to not cluster those orphan entries when using bin_exclusive mode with specialization
 				spec = "specialization-" + seqid
 		else:
 			spec = None
@@ -328,8 +319,8 @@ def parse_input(file, table, groups, taxnodes, specialization, sequences, contro
 			# update taxonomy
 			taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
 
-		leaf = spec if specialization else taxid
 		# Define leaf
+		leaf = spec if specialization else taxid
 		if bins:
 			seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
 			sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
@@ -495,25 +486,17 @@ def input_reader(file_handler):
 	for line in file_handler:
 		yield line.rstrip().split("\t")
 
-def check_specialization_update(update_file, update_table, bin_exclusive, specialization):
-	# Check if specialization is set for update file
-	# verify if they are compatible using bin_exclusive mode
-	specialization_update = ""
-	specialization_compatible = True
-
+def check_specialization_update(update_file, update_table, specialization):
+	# Check if specialization field is present in the update file
+	ret = True
 	updf = input_opener(update_file, update_table)
-	# If reading bins, check if specialization is used (last field)
-	if len(next(input_reader(updf)))==7 :
-		print_log("Specialization entries found on pre-generated bins")
-		specialization_update="specialization"
+	# Check if bins have specialization
+	n_fields = len(next(input_reader(updf)))
+	if (n_fields==7 and not specialization) or (n_fields==6 and specialization):
+		print_log("Specialization should match pre-generated bins")
+		ret = False
 	updf.close()
-
-	if bin_exclusive:
-		if bool(specialization_update) != bool(specialization): #XOR - either both are using specialization or nones
-			print_log("Specialization found in one part only. Clustering not compatible using --bin-exclusive. Creating new bins only")
-			compatible = False
-
-	return specialization_compatible, specialization_update
+	return ret
 
 def print_log(text):
 	if not _taxsbp_silent: sys.stderr.write(text+"\n")

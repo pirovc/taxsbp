@@ -20,6 +20,7 @@ class TestUpdate(unittest.TestCase):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_basic.tsv"
         cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
@@ -130,7 +131,7 @@ class TestUpdate(unittest.TestCase):
     def test_specialization(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_specialization.tsv"
-        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
         cfg.specialization="spec"
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
@@ -295,7 +296,7 @@ class TestUpdate(unittest.TestCase):
     def test_all(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_all.tsv"
-        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
         cfg.input_file=self.base_dir+"data/seqinfo_merged_nodes.tsv"
         cfg.merged_file=self.base_dir+"data/merged.dmp"
         cfg.bin_exclusive="rank-4"
@@ -314,105 +315,32 @@ class TestUpdate(unittest.TestCase):
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
     
-    def test_spec_bins_no_spec(self):
+    def test_incompatible_spec(self):
         cfg = Config(**self.default_config)
-        cfg.output_file=self.results_dir+"test_specialization_bins_no_spec.tsv"
-        cfg.update_file=self.base_dir+"data/bins_ABCD_no_spec.tsv"
-        cfg.bin_len=500
+        cfg.output_file=self.results_dir+"test_incompatible_spec1.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
         cfg.specialization="spec"
+        # should not run
+        self.assertFalse(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         
-        # run check
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec2.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
+        # should not run
+        self.assertFalse(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec3.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        # should run
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-        inf, outf = parse_files(cfg)
-        updf = parse_output(cfg.update_file)
-        # Join update file on output
-        mergedf = pd.concat([updf,outf], ignore_index=True)
-        
-        # sanity check
-        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
-        
-        # specific check - specialization should contain NaN (update_file) and not NaN values (input_file)
-        self.assertTrue(mergedf.specialization.isnull().values.any(), "specialization failed")
-        self.assertFalse(mergedf.specialization.isnull().values.all(), "specialization failed")
 
-    # def test_bin_exclusive_specialization_bins_no_spec(self):
-    #     cfg = Config(**self.default_config)
-    #     cfg.output_file=self.results_dir+"test_bin_exclusive_specialization_bins_no_spec.tsv"
-    #     cfg.update_file=self.base_dir+"data/bins_ABCD_no_spec.tsv"
-    #     cfg.bin_len=1300
-    #     cfg.specialization="spec"
-    #     cfg.bin_exclusive="spec"
-        
-    #     # run check
-    #     self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-    #     inf, outf = parse_files(cfg)
-    #     updf = parse_output(cfg.update_file)
-    #     # Join update file on output
-    #     mergedf = pd.concat([updf,outf], ignore_index=True)
-    #     # sanity check
-    #     self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
-    #     # specific test - even when possible (bin_len=1300), using bin_exclusive should split the inputs into more bins
-    #     self.assertTrue(mergedf["binid"].max()>0 , "Bin-exclusive clustering failed")
-
-    # def test_pre_cluster_specialization_bins_no_spec(self):
-    #     cfg = Config(**self.default_config)
-    #     cfg.output_file=self.results_dir+"test_pre_cluster_specialization_bins_no_spec.tsv"
-    #     cfg.update_file=self.base_dir+"data/bins_ABCD_no_spec.tsv"
-    #     cfg.bin_len=200
-    #     cfg.specialization="spec"
-    #     cfg.pre_cluster="spec"
-
-    #     # run check
-    #     self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-    #     inf, outf = parse_files(cfg)
-    #     updf = parse_output(cfg.update_file)
-
-    #     # Join update file on output
-    #     mergedf = pd.concat([updf,outf], ignore_index=True)
-    #     # sanity check
-    #     self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
-    #     # specific test - pre-clustered can and should be bigger than bin length
-    #     self.assertTrue(mergedf.groupby(["binid"]).sum()["length"].max()>cfg.bin_len , "Pre-clustering failed")
-
-    # def test_update_merging_bins_specialization_bins_no_spec(self):
-    #     cfg = Config(**self.default_config)
-    #     cfg.output_file=self.results_dir+"test_update_merging_bins_spec_bins_no_spec.tsv"
-    #     cfg.update_file=self.base_dir+"data/bins_ABCD_no_spec.tsv"
-    #     cfg.bin_len=400
-    #     cfg.specialization="spec"
-    #     cfg.allow_merge=True
-
-    #     self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-    #     inf, outf = parse_files(cfg)
-
-    #     # sanity check - fails because some sequences are invalidated
-    #     self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
-    
-    #     # specific check - binid 0 is updated with contents from bin 1
-    #     self.assertEqual(sum(outf["binid"]==0), 4, "Merge failed")
-    #     self.assertTrue(outf[outf["binid"]==0]["seqid"].isin(["A","B","C","D"]).all(), "Merge failed")
-
-    # def test_no_specialization_bins_spec(self):
-    #     cfg = Config(**self.default_config)
-    #     cfg.output_file=self.results_dir+"test_no_specialization_bins_spec.tsv"
-    #     cfg.input_file=self.base_dir+"data/seqinfo_no_spec.tsv"
-    #     cfg.update_file=self.base_dir+"data/bins_LKM.tsv"
-    #     #cfg.bin_len=200
-
-    #     self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
-    #     inf, outf = parse_files(cfg)
-    #     updf = parse_output(cfg.update_file)
-    #     # Join update file on output
-    #     mergedf = pd.concat([updf,outf], ignore_index=True)
-
-    #     # sanity check - fails because some sequences are invalidated
-    #     self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
-        
-    #     #print(mergedf)
-    #     # specific check - binid 0 is updated with contents from bin 1
-    #     #self.assertEqual(sum(outf["binid"]==0), 4, "Merge failed")
-    #     #self.assertTrue(outf[outf["binid"]==0]["seqid"].isin(["A","B","C","D"]).all(), "Merge failed")
-
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec4.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
+        cfg.specialization="spec"
+        # should run
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
 
 if __name__ == '__main__':
     unittest.main()
