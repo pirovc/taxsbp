@@ -20,14 +20,15 @@ class TestUpdate(unittest.TestCase):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_basic.tsv"
         cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         inf, outf = parse_files(cfg)
         updf = parse_output(cfg.update_file)
         # Join update file on output
-        outf = pd.concat([updf,outf], ignore_index=True)
+        mergedf = pd.concat([updf,outf], ignore_index=True)
         # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
 
     def test_input_update_table(self):
         cfg = Config(**self.default_config)
@@ -44,9 +45,9 @@ class TestUpdate(unittest.TestCase):
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
         outf = parse_output(cfg.output_file)
         # Join update file on output
-        outf = pd.concat([updf,outf], ignore_index=True)
+        mergedf = pd.concat([updf,outf], ignore_index=True)
         # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
 
     def test_nodes_missing(self):
         cfg = Config(**self.default_config)
@@ -130,7 +131,7 @@ class TestUpdate(unittest.TestCase):
     def test_specialization(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_specialization.tsv"
-        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
         cfg.specialization="spec"
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
@@ -207,11 +208,11 @@ class TestUpdate(unittest.TestCase):
         inf, outf = parse_files(cfg)
         updf = parse_output(cfg.update_file)
         # Join update file on output
-        outf = pd.concat([updf,outf], ignore_index=True)
+        mergedf = pd.concat([updf,outf], ignore_index=True)
         # sanity check
-        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+        self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
         # specific check - 3 entries should be on bin 0
-        self.assertEqual(sum(outf["binid"]==0), 3, "Update failed")
+        self.assertEqual(sum(mergedf["binid"]==0), 3, "Update failed")
 
         # Test with smaller bin len
         cfg.output_file=self.results_dir+"test_bin_len200.tsv"
@@ -230,7 +231,6 @@ class TestUpdate(unittest.TestCase):
     def test_update_merging_bins(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_update_merging_bins.tsv"
-        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
         cfg.update_file=self.base_dir+"data/bins_LKM.tsv"
         cfg.bin_len=400
         # Output is complete when using allow_merge
@@ -261,7 +261,6 @@ class TestUpdate(unittest.TestCase):
     def test_update_not_merging_bins(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_update_merging_bins.tsv"
-        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
         cfg.update_file=self.base_dir+"data/bins_LKM.tsv"
         cfg.bin_len=200
 
@@ -280,7 +279,6 @@ class TestUpdate(unittest.TestCase):
     def test_update_missing_bins(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_update_missing_bins.tsv"
-        cfg.input_file=self.base_dir+"data/seqinfo.tsv"
         cfg.update_file=self.base_dir+"data/bins_LJ_missing_binid.tsv"
         cfg.bin_len=200
 
@@ -298,7 +296,7 @@ class TestUpdate(unittest.TestCase):
     def test_all(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_all.tsv"
-        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
         cfg.input_file=self.base_dir+"data/seqinfo_merged_nodes.tsv"
         cfg.merged_file=self.base_dir+"data/merged.dmp"
         cfg.bin_exclusive="rank-4"
@@ -317,5 +315,32 @@ class TestUpdate(unittest.TestCase):
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, mergedf), "Input/Output files are inconsistent")
     
+    def test_incompatible_spec(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec1.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        cfg.specialization="spec"
+        # should not run
+        self.assertFalse(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec2.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
+        # should not run
+        self.assertFalse(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec3.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ.tsv"
+        # should run
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_incompatible_spec4.tsv"
+        cfg.update_file=self.base_dir+"data/bins_LJ_spec.tsv"
+        cfg.specialization="spec"
+        # should run
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+
 if __name__ == '__main__':
     unittest.main()

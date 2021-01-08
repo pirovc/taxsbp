@@ -272,5 +272,22 @@ class TestCluster(unittest.TestCase):
         unique_binid = outf[["binid","taxid"]].drop_duplicates()
         self.assertEqual(unique_binid.shape[0], unique_binid.binid.max()+1, "Bins are not rank exclusive")
 
+    def test_missing_spec(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_missing_spec.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo_missing_spec.tsv"
+        cfg.bin_len=500
+        cfg.specialization="strain"
+        cfg.bin_exclusive="strain"
+
+        # run check
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+
+        # should have "specialiation-*" entries 
+        self.assertTrue(outf["specialization"].map(lambda x: x.startswith("specialization-")).any() , "Specialization replacement failed")
+        
 if __name__ == '__main__':
     unittest.main()

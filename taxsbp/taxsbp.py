@@ -45,9 +45,9 @@ def main(arguments: str=None):
 	if arguments is not None: sys.argv=arguments
 
 	parser = argparse.ArgumentParser(prog='taxsbp', conflict_handler="resolve", add_help=True)
-	parser.add_argument('-i','--input-file', metavar='<input_file>', dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
+	parser.add_argument('-i','--input-file', metavar='<input_file>', required=True, dest="input_file", help="Tab-separated with the fields: sequence id <tab> sequence length <tab> taxonomic id [<tab> specialization]")
 	parser.add_argument('-o','--output-file', metavar='<output_file>', dest="output_file", help="Path to the output tab-separated file. Fields: sequence id <tab> sequence start <tab> sequence end <tab> sequence length <tab> taxonomic id <tab> bin id [<tab> specialization]. Default: STDOUT")
-	parser.add_argument('-n','--nodes-file', metavar='<nodes_file>', dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
+	parser.add_argument('-n','--nodes-file', metavar='<nodes_file>', required=True, dest="nodes_file", help="nodes.dmp from NCBI Taxonomy")
 	parser.add_argument('-m','--merged-file', metavar='<merged_file>', dest="merged_file", help="merged.dmp from NCBI Taxonomy")
 	parser.add_argument('-l','--bin-len', metavar='<bin_len>', dest="bin_len", type=int, help="Maximum bin length (in bp). Use this parameter insted of -b to define the number of bins. Default: length of the biggest group [Mutually exclusive -b]")
 	parser.add_argument('-b','--bins', metavar='<bins>', dest="bins", type=int, help="Approximate number of bins (estimated by total length/bin number). [Mutually exclusive -l]")
@@ -115,6 +115,10 @@ def pack(bin_exclusive: str=None,
 
 	# If updating, parse bins files first to detect which sequences are already used
 	if update_file or update_table:
+
+		# Check if specialization is compatible for the update
+		if not check_specialization_update(update_file, update_table, specialization): return False
+
 		# return grouping by their binid: groups[binid] = Group(...)
 		parse_input(update_file, update_table, groups, taxnodes, specialization, sequences, control_seqid, fragment_len, overlap_len, bins=True)
 		# get used bins
@@ -124,7 +128,7 @@ def pack(bin_exclusive: str=None,
 		for binid, group in groups.items(): 
 			group.join_clusters()
 			if bin_exclusive and len(group.get_leaves())>1:
-				print_log(str(binid) + " bin with more than one leaf assignment. Clusters are not bin exclusive.")
+				print_log("bin (" + str(binid) + ") has more than one leaf assignment (" + ",".join(group.get_leaves()) + "). Clusters are not bin exclusive.")
 		# replace binid of groups by their LCA or unique leaf: groups[leaf or LCA] = Group(...)
 		set_leaf_bins(groups, taxnodes)
 
@@ -268,60 +272,65 @@ def parse_input(file, table, groups, taxnodes, specialization, sequences, contro
 		fields_pos["taxid"] = 2
 		fields_pos["specialization"] = 3
 
-	if table is not None:
-		inf = StringIO(table)
-	else:
-		inf = open(file,'r')
+	inf = input_opener(file, table)
 
-	for line in inf:
-		try:
-			fields = line.rstrip().split('\t')
-			seqid = fields[fields_pos["seqid"]]
-			seqlen = int(fields[fields_pos["seqlen"]])
-			taxid = fields[fields_pos["taxid"]]
-			binid = int(fields[fields_pos["binid"]]) if bins else None
-			spec = fields[fields_pos["specialization"]] if specialization else None
+	for fields in input_reader(inf):
+		#fields = line.rstrip().split('\t')
+		seqid = fields[fields_pos["seqid"]]
+		seqlen = int(fields[fields_pos["seqlen"]])
+		taxid = fields[fields_pos["taxid"]]
+		binid = int(fields[fields_pos["binid"]]) if bins else None
+		
+		# If specialization is requested 
+		if specialization:
+			try:
+				spec = fields[fields_pos["specialization"]]
+			except:
+				# Unique placeholder if specialization not found for some entries
+				# required to not cluster those orphan entries when using bin_exclusive mode with specialization
+				spec = "specialization-" + seqid
+		else:
+			spec = None
 
-			# if reading main input (after loaded bins), do not add duplicated sequences
-			if not bins and seqid in control_seqid:
-			 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
-			 	continue
+		# if reading main input (after loaded bins), do not add duplicated sequences
+		if not bins and seqid in control_seqid:
+		 	print_log("[" + seqid + "] skipped - duplicated sequence identifier")
+		 	continue
 
-			# add entry before other checks
-			# when parsing bins, do not ignore the ones with failing tax/spec
-			# since they have to be kept
-			control_seqid.add(seqid)
+		# add entry before other checks
+		# when parsing bins, do not ignore the ones with failing tax/spec
+		# since they have to be kept
+		control_seqid.add(seqid)
 
-			if not taxnodes.get_parent(taxid): 
-				m = taxnodes.get_merged(taxid)
-				if not m: 
-					print_log("[" + seqid + "] skipped - taxid not found in nodes/merged file")
-					continue
-				else:
-					print_log("[" + seqid + "] outdated taxid (old: "+str(taxid)+" -> new:"+str(m)+")")
-					taxid = m # Get updated version of the taxid from merged.dmp
-			
-			if specialization:
-				s = taxnodes.get_parent(spec)
-				if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
-					print_log("[" + seqid + "] skipped - specialization assigned to multiple leaves, just first leaf-group linking will be considered (" + str(s) + ":" + spec + ")")
-					continue
-				# update taxonomy
-				taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
-
-			leaf = spec if specialization else taxid
-			# Define leaf
-			if bins:
-				seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
-				sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
-				# Use binid as groupid
-				# Do not save binid information if bins can be merged
-				groups[binid].add_cluster(leaf,seqid,seqlen,binid)
+		if not taxnodes.get_parent(taxid): 
+			m = taxnodes.get_merged(taxid)
+			if not m: 
+				print_log("[" + seqid + "] skipped - taxid not found in nodes/merged file")
+				continue
 			else:
-				# Fragment input, add to sequences and clusters
-				groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
-		except Exception as e:
-			print_log(str(e))
+				print_log("[" + seqid + "] outdated taxid (old: "+str(taxid)+" -> new:"+str(m)+")")
+				taxid = m # Get updated version of the taxid from merged.dmp
+		
+		if specialization:
+			s = taxnodes.get_parent(spec)
+			if s!=None and s!=taxid: # group specialization was found in more than one taxid (breaks the tree hiercharchy)
+				print_log("[" + seqid + "] skipped - specialization assigned to multiple leaves, just first leaf-group linking will be considered (" + str(s) + ":" + str(spec) + ")")
+				continue
+			# update taxonomy
+			taxnodes.add_node(taxid, spec, specialization) #add taxid as parent, specialization as rank
+
+		# Define leaf
+		leaf = spec if specialization else taxid
+		if bins:
+			seqid = make_unique_seqid(seqid, fields[fields_pos["seqstart"]], fields[fields_pos["seqend"]])
+			sequences[seqid] = Sequence(seqlen, taxid, spec, binid)
+			# Use binid as groupid
+			# Do not save binid information if bins can be merged
+			groups[binid].add_cluster(leaf,seqid,seqlen,binid)
+		else:
+			# Fragment input, add to sequences and clusters
+			groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
+	
 	inf.close()
 
 def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_len, sequences):
@@ -465,6 +474,29 @@ def generate_results(groups, sequences, specialization, allow_merge):
 				parsed_seqid, st, en = split_unique_seqid(seqid)
 				spec = sequences[seqid].specialization if specialization else ""
 				yield [parsed_seqid, st, en, sequences[seqid].seqlen, sequences[seqid].taxid, str(cluster.get_binid()), spec]
+
+def input_opener(file, table):
+	if table is not None:
+		file_handler = StringIO(table)
+	else:
+		file_handler = open(file,'r')
+	return file_handler
+
+def input_reader(file_handler):
+	for line in file_handler:
+		yield line.rstrip().split("\t")
+
+def check_specialization_update(update_file, update_table, specialization):
+	# Check if specialization field is present in the update file
+	ret = True
+	updf = input_opener(update_file, update_table)
+	# Check if bins have specialization
+	n_fields = len(next(input_reader(updf)))
+	if (n_fields==7 and not specialization) or (n_fields==6 and specialization):
+		print_log("Specialization should match pre-generated bins")
+		ret = False
+	updf.close()
+	return ret
 
 def print_log(text):
 	if not _taxsbp_silent: sys.stderr.write(text+"\n")
