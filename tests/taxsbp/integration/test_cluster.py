@@ -29,7 +29,7 @@ class TestCluster(unittest.TestCase):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_input_table.tsv"
         inf = parse_input(cfg.input_file)
-        cfg.input_table=inf.to_csv(sep="\t",header=False, index=False)
+        cfg.input_table=inf
         cfg.input_file=None
 
         # run check

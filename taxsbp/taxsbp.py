@@ -28,7 +28,6 @@ import binpacking
 import argparse
 import sys
 from math import ceil
-from io import StringIO
 from collections import defaultdict
 from pylca.pylca import LCA
 from taxsbp.Group import Group
@@ -114,7 +113,7 @@ def pack(bin_exclusive: str=None,
 	used_bins = set()
 
 	# If updating, parse bins files first to detect which sequences are already used
-	if update_file or update_table:
+	if update_file or update_table is not None:
 
 		# Check if specialization is compatible for the update
 		if not check_specialization_update(update_file, update_table, specialization): return False
@@ -152,7 +151,7 @@ def pack(bin_exclusive: str=None,
 
 	# Remove binid from clusters to allow them to merge
 	# Don't do it before so they won't be joined together (Group func. join_clusters())
-	if (update_file or update_table) and allow_merge: clear_binids(groups)
+	if (update_file or update_table is not None) and allow_merge: clear_binids(groups)
 
 	# cluster
 	cluster(groups, taxnodes, blen, bin_exclusive, specialization)
@@ -272,9 +271,9 @@ def parse_input(file, table, groups, taxnodes, specialization, sequences, contro
 		fields_pos["taxid"] = 2
 		fields_pos["specialization"] = 3
 
-	inf = input_opener(file, table)
+	in_generator, file_handler = input_gen(file, table)
 
-	for fields in input_reader(inf):
+	for fields in in_generator:
 		#fields = line.rstrip().split('\t')
 		seqid = fields[fields_pos["seqid"]]
 		seqlen = int(fields[fields_pos["seqlen"]])
@@ -331,7 +330,7 @@ def parse_input(file, table, groups, taxnodes, specialization, sequences, contro
 			# Fragment input, add to sequences and clusters
 			groups[leaf].add_clusters([leaf], fragment_input(seqid, seqlen, taxid, spec, fragment_len, overlap_len, sequences))
 	
-	inf.close()
+	if file_handler is not None: file_handler.close()
 
 def fragment_input(seqid, seqlen, taxid, specialization, fragment_len, overlap_len, sequences):
 	frag_clusters = []
@@ -475,27 +474,35 @@ def generate_results(groups, sequences, specialization, allow_merge):
 				spec = sequences[seqid].specialization if specialization else ""
 				yield [parsed_seqid, st, en, sequences[seqid].seqlen, sequences[seqid].taxid, str(cluster.get_binid()), spec]
 
-def input_opener(file, table):
+def input_gen(file, table):
+	file_handler = None
 	if table is not None:
-		file_handler = StringIO(table)
+		gen = table_reader(table)
 	else:
 		file_handler = open(file,'r')
-	return file_handler
+		gen = file_reader(file_handler)
+	return gen, file_handler
 
-def input_reader(file_handler):
+def file_reader(file_handler):
 	for line in file_handler:
 		yield line.rstrip().split("\t")
+
+def table_reader(table):
+	for idx,row in table.iterrows(): 
+		yield [*row]
 
 def check_specialization_update(update_file, update_table, specialization):
 	# Check if specialization field is present in the update file
 	ret = True
-	updf = input_opener(update_file, update_table)
+	gen, fhand = input_gen(update_file, update_table)
 	# Check if bins have specialization
-	n_fields = len(next(input_reader(updf)))
+	n_fields = len(next(gen))
+
 	if (n_fields==7 and not specialization) or (n_fields==6 and specialization):
 		print_log("Specialization should match pre-generated bins")
+
 		ret = False
-	updf.close()
+	if fhand is not None: fhand.close()
 	return ret
 
 def print_log(text):
