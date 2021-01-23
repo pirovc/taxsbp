@@ -488,8 +488,8 @@ def file_reader(file_handler):
 		yield line.rstrip().split("\t")
 
 def table_reader(table):
-	for idx,row in table.iterrows(): 
-		yield [*row]
+	for idx,row in table.iterrows():
+		yield row.to_list()
 
 def check_specialization_update(update_file, update_table, specialization):
 	# Check if specialization field is present in the update file
