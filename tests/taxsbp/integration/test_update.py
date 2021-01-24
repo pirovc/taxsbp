@@ -33,13 +33,15 @@ class TestUpdate(unittest.TestCase):
     def test_input_update_table(self):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_input_update_table.tsv"
-        
+
         inf = parse_input(cfg.input_file)
-        cfg.input_table=inf.to_csv(sep="\t",header=False, index=False)
+        cfg.input_table=inf
         cfg.input_file=None
 
         updf = parse_output(self.base_dir+"data/bins_LJ.tsv")
-        cfg.update_table=updf.to_csv(sep="\t",header=False, index=False)
+        # drop unused specialization col
+        updf.drop(["specialization"], axis=1, inplace=True)
+        cfg.update_table=updf
 
         # run check
         self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
