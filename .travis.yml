@@ -1,17 +1,17 @@
 language: python
 python:
-  - "3.4"
   - "3.5"
   - "3.6"
   - "3.7"
   - "3.8"
-#  - "3.8-dev"
+  - "3.9"
 
 install:
   - pip install "pandas>=0.22.0"
   - pip install binpacking==1.4.3
   - git clone https://github.com/pirovc/pylca.git
   - cd pylca
+  - git checkout d1474b2ec2c028963bafce278ccb69cc21c061fa #v1.0.0
   - python setup.py install
   - cd ..
 

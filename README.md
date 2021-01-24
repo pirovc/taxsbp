@@ -23,7 +23,8 @@ or [manual installation](#manual-installation) without conda
  
  * nodes.dmp and merged.dmp from NCBI Taxonomy (ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz)
  * specialization can be used to further cluster sequences by groups beyond the taxonomy (e.g. strain name, assembly accession, ...)
-
+ * if specialization is set but missing in the file, a placeholder will be used "specialization-sequence id"
+ 
 ### Output 
 
  * A tab-separated file:
@@ -253,10 +254,10 @@ $ taxsbp -h
 
 ### Dependencies:
 
-- python>=3.4
+- python>=3.5
 - [binpacking](https://pypi.org/project/binpacking/)==1.4.3
 - [pylca](https://github.com/pirovc/pylca)==1.0.0
-- [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0 (tests only)
+- [pandas](https://pypi.org/project/pandas/)pandas>=0.22.0 (optional)
 
 ### Pylca:
 

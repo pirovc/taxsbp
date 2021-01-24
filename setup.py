@@ -13,7 +13,7 @@ def read(filename):
 
 setup(
     name="taxsbp",
-    version="1.0.0",
+    version="1.1.0",
     url="https://www.github.com/pirovc/taxsbp",
     license='MIT',
 
@@ -26,14 +26,14 @@ setup(
     packages=['taxsbp'],
     install_requires=['binpacking==1.4.3'],
 
-    entry_points = {'console_scripts': ['taxsbp=taxsbp.taxsbp:main']},
+    entry_points = {'console_scripts': ['taxsbp=taxsbp.taxsbp:main_cli']},
 
     classifiers=[
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
     ],
 )

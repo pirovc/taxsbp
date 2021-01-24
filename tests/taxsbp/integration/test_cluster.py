@@ -29,7 +29,7 @@ class TestCluster(unittest.TestCase):
         cfg = Config(**self.default_config)
         cfg.output_file=self.results_dir+"test_input_table.tsv"
         inf = parse_input(cfg.input_file)
-        cfg.input_table=inf.to_csv(sep="\t",header=False, index=False)
+        cfg.input_table=inf
         cfg.input_file=None
 
         # run check
@@ -239,6 +239,55 @@ class TestCluster(unittest.TestCase):
         inf, outf = parse_files(cfg)
         # sanity check
         self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+    
+    def test_pre_cluster_invalid_rank(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_pre_cluster_invalid_rank.tsv"
+        cfg.bin_len=200
+        cfg.pre_cluster="XY2418721Z"
 
+        # run check
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+
+        # specific test - pre-clustered can and should be bigger than bin length
+        self.assertTrue(outf.groupby(["binid"]).sum()["length"].max()>cfg.bin_len , "Pre-clustering failed")
+    
+    def test_bin_exclusive_invalid_rank(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_bin_exclusive.tsv"
+        cfg.bin_len=1300
+        cfg.bin_exclusive="XY421Z91241"
+
+        # run check
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+
+        # specific test - even when possible (bin_len=1300), using bin_exclusive should split the inputs into more bins
+        self.assertTrue(outf["binid"].max()>0 , "Bin-exclusive clustering failed")
+        unique_binid = outf[["binid","taxid"]].drop_duplicates()
+        self.assertEqual(unique_binid.shape[0], unique_binid.binid.max()+1, "Bins are not rank exclusive")
+
+    def test_missing_spec(self):
+        cfg = Config(**self.default_config)
+        cfg.output_file=self.results_dir+"test_missing_spec.tsv"
+        cfg.input_file=self.base_dir+"data/seqinfo_missing_spec.tsv"
+        cfg.bin_len=500
+        cfg.specialization="strain"
+        cfg.bin_exclusive="strain"
+
+        # run check
+        self.assertTrue(taxsbp.taxsbp.pack(**vars(cfg)), "TaxSBP fails to run")
+        inf, outf = parse_files(cfg)
+        # sanity check
+        self.assertTrue(sanity_check(cfg, inf, outf), "Input/Output files are inconsistent")
+
+        # should have "specialiation-*" entries 
+        self.assertTrue(outf["specialization"].map(lambda x: x.startswith("specialization-")).any() , "Specialization replacement failed")
+        
 if __name__ == '__main__':
     unittest.main()
