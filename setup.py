@@ -13,7 +13,7 @@ def read(filename):
 
 setup(
     name="taxsbp",
-    version="1.1.0",
+    version="1.1.1",
     url="https://www.github.com/pirovc/taxsbp",
     license='MIT',
 
