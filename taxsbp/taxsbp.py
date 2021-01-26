@@ -58,7 +58,7 @@ def main(arguments: str=None):
 	parser.add_argument('-u','--update-file', metavar='<update_file>', dest="update_file", type=str, default="", help="Previously generated clusters to be updated. Output only new sequences")
 	parser.add_argument('-w','--allow-merge', dest="allow_merge", default=False, action='store_true', help="When updating, allow merging of existing bins. Will output the whole set, not only new bins")
 	parser.add_argument('-t','--silent', dest="silent", default=False, action='store_true', help="Do not print warning to STDERR")
-	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.1.0')
+	parser.add_argument('-v','--version', action='version', version='%(prog)s 1.1.1')
 
 	if len(sys.argv)==1: # Print help calling script without parameters
 		parser.print_help() 
@@ -488,7 +488,7 @@ def file_reader(file_handler):
 		yield line.rstrip().split("\t")
 
 def table_reader(table):
-	for idx,row in table.iterrows():
+	for row in table.itertuples(index=False, name=None):
 		yield [*row]
 
 def check_specialization_update(update_file, update_table, specialization):
@@ -500,8 +500,8 @@ def check_specialization_update(update_file, update_table, specialization):
 
 	if (n_fields==7 and not specialization) or (n_fields==6 and specialization):
 		print_log("Specialization should match pre-generated bins")
-
 		ret = False
+		
 	if fhand is not None: fhand.close()
 	return ret
 
