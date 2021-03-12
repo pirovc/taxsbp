@@ -9,7 +9,7 @@ Implementation of the approximation algorithm for the hierarchically structured 
 ## Installation
 
 ```shh
-conda -c bioconda -c conda-forge taxsbp
+conda install -c bioconda -c conda-forge taxsbp
 ```
 or [manual installation](#manual-installation) without conda
 
