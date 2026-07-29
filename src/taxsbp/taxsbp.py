@@ -1,6 +1,10 @@
+import binpacking
 import sys
 import argparse
+from taxsbp.Group import Group
+from taxsbp.Cluster import Cluster
 from taxsbp import __version__
+from multitax import CustomTx
 
 
 def main(arguments: str = None):
@@ -33,7 +37,7 @@ def main(arguments: str = None):
     )
     parser.add_argument(
         "-b",
-        "--bins",
+        "--n-bins",
         type=int,
         help="Approximate number of bins (estimated by total length/bin number). [Mutually exclusive -l]",
     )
@@ -72,7 +76,123 @@ def main(arguments: str = None):
 
     args = parser.parse_args()  # read sys.argv[1:] by default
 
-    print(args)
+    groups = dict()
+    lens = dict()
+    with open(args.input_file, "r") as infile:
+        for line in infile:
+            uid, w, node, _ = line.rstrip().split("\t")
+            if node not in groups:
+                groups[node] = Group()
+            groups[node].add_clusters([node], [Cluster([uid], int(w))])
+            lens[uid] = int(w)
+    tax = CustomTx(files=args.taxonomy_file)
+
+    # Define bin length
+    if args.bin_len:  # user defined
+        blen = args.bin_len
+    elif (
+        args.n_bins
+    ):  # Estimate bin len based on number of requested bins or direct by user
+        blen = sum([g.get_length() for g in groups.values()]) / float(args.n_bins)
+    else:  # Default bin length on the max group length
+        blen = max([g.get_length() for g in groups.values()])
+
+    print(blen)
+    print(groups)
+
+    cluster(groups, tax, blen)
+    set_bins(groups)
+    res = generate_results(groups, lens)
+
+    print(groups)
+
+    if args.output_file:
+        with open(args.output_file, "w") as file:
+            for r in res:
+                print(*r, sep="\t", file=file)
+    else:
+        for r in res:
+            print(*r, sep="\t", file=sys.stderr)
+
+
+def cluster(groups, tax, blen):
+    # parent->children structure for fast loookup, only for used taxids
+
+    # bin_exclusive mode
+    # if bin_exclusive:
+    # 	rank_taxids, orphan_taxids = get_rank_taxids(groups, taxnodes, bin_exclusive, specialization)
+    # 	if rank_taxids:
+    # 		# clustering directly on the rank chosen, recursion required for children nodes
+    # 		for rank_taxid in rank_taxids:
+    # 			ApproxSBP(rank_taxid, None, groups, children, bin_len)
+    # 	if orphan_taxids:
+    # 		# clustering directly on the taxid level, no recursion to children nodes necessary
+    # 		for orphan_taxid in orphan_taxids:
+    # 			bpck(groups, orphan_taxid, orphan_taxid, bin_len)
+    # else: # default mode
+
+    ApproxSBP("1", None, groups, tax, blen)
+
+
+def bpck(groups, node, parent, blen):
+    # Perform bin packing on a single node
+    # it packs the clusters on groups[node] and add to groups[parent]
+    # if node and parent are equal, root was reached
+    at_root = True if node == parent else False
+
+    # If there is only one cluster, do not need to pack
+    if groups[node].get_cluster_count() == 1:
+        if not at_root:  # transfer cluster to parent if not root
+            if parent not in groups:
+                groups[parent] = Group()
+            groups[parent].merge(groups[node])
+            del groups[node]
+    else:
+        # Perform bin packing
+        clusters = binpacking.to_constant_volume(
+            groups[node].get_clusters_to_bpck(), blen, weight_pos=1
+        )
+        print(node, groups[node].get_clusters_to_bpck())
+        if clusters:
+            if parent not in groups:
+                groups[parent] = Group()
+            if not at_root:
+                # Parse clustered results into parent node and remove actual node
+                groups[parent].add_clusters_from_bpck(
+                    clusters, leaves=groups[node].get_leaves()
+                )
+                del groups[node]
+            else:  # if root
+                # Parse clustered results into same node (clear it before)
+                groups[parent].clear_clusters()
+                groups[parent].add_clusters_from_bpck(clusters)
+            print(groups[parent])
+
+def ApproxSBP(node, parent, groups, tax, blen):
+    # Function to perform hiearchical bin packing recursively
+    # Recursively call to pack sorted list of children (to get always same results)
+    for child in sorted(tax.children(node), key=str):
+        ApproxSBP(child, node, groups, tax, blen)
+    else:
+        # If node is a leaf - no child in children[node]
+        # or
+        # After all children of a node were packed in the for loop, pack node itself into parent
+        bpck(groups, node, parent if parent is not None else node, blen)
+
+
+def set_bins(groups):
+    binid_count = -1
+    for v, group in groups.items():
+        for cluster in group.get_clusters():
+            binid_count += 1
+            cluster.set_binid(binid_count)
+
+
+def generate_results(groups, lens):
+    for v, group in groups.items():
+        for cluster in group.get_clusters():
+            for seqid in cluster.get_ids():
+                yield [seqid, lens[seqid], str(cluster.get_binid())]
 
 
 if __name__ == "__main__":
