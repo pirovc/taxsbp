@@ -1,0 +1,39 @@
+[project]
+name = "taxsbp"
+dynamic = [ "version" ]
+description = "Implementation of the approximation algorithm for the hierarchically structured bin packing problem"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [ "pandas==3.*", "multitax>=1.6.0", "binpacking==1.4.3" ]
+
+[project.urls]
+Homepage = "https://github.com/pirovc/taxsbp"
+Documentation = "https://pirovc.github.io/taxsbp"
+Repository = "https://github.com/pirovc/taxsbp"
+
+[project.optional-dependencies]
+dev = [ "ruff", "coverage", "pdoc" ]
+
+[project.scripts]
+taxsbp = "taxsbp.taxsbp:main"
+
+[build-system]
+requires = [ "setuptools>=80", "setuptools_scm>=8" ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+
+
+[tool.setuptools_scm]
+write_to = "VERSION.txt"
+
+[tool.ruff]
+include = [ "pyproject.toml", "src/taxsbp/*.py"]
+
