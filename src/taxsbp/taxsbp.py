@@ -82,7 +82,7 @@ def main(arguments: str = None):
 
     with open(args.input_file, "r") as infile:
         for line in infile:
-            uid, w, node, _ = line.rstrip().split("\t")
+            uid, w, node = line.rstrip().split("\t")
             unode = tax.latest(node)
             if unode:
                 if unode not in groups:
@@ -92,6 +92,8 @@ def main(arguments: str = None):
             else:
                 print(node + " not found", file=sys.stderr)
     
+    # Keep only used nodes on tax
+    tax.filter(lens.keys(), desc=True)
 
     # Define bin length
     if args.bin_len:  # user defined
@@ -142,6 +144,7 @@ def bpck(groups, node, parent, blen):
     # if node and parent are equal, root was reached
     at_root = True if node == parent else False
 
+    print(node, parent)
     # If there is only one cluster, do not need to pack
     if groups[node].get_cluster_count() == 1:
         if not at_root:  # transfer cluster to parent if not root
