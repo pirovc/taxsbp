@@ -78,14 +78,20 @@ def main(arguments: str = None):
 
     groups = dict()
     lens = dict()
+    tax = CustomTx(files=args.taxonomy_file)
+
     with open(args.input_file, "r") as infile:
         for line in infile:
             uid, w, node, _ = line.rstrip().split("\t")
-            if node not in groups:
-                groups[node] = Group()
-            groups[node].add_clusters([node], [Cluster([uid], int(w))])
-            lens[uid] = int(w)
-    tax = CustomTx(files=args.taxonomy_file)
+            unode = tax.latest(node)
+            if unode:
+                if unode not in groups:
+                    groups[unode] = Group()
+                groups[unode].add_clusters([unode], [Cluster([uid], int(w))])
+                lens[uid] = int(w)
+            else:
+                print(node + " not found", file=sys.stderr)
+    
 
     # Define bin length
     if args.bin_len:  # user defined
@@ -108,7 +114,7 @@ def main(arguments: str = None):
                 print(*r, sep="\t", file=file)
     else:
         for r in res:
-            print(*r, sep="\t", file=sys.stderr)
+            print(*r, sep="\t", file=sys.stdout)
 
 
 def cluster(groups, tax, blen):
