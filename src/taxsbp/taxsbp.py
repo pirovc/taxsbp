@@ -97,14 +97,10 @@ def main(arguments: str = None):
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
-    print(blen)
-    print(groups)
 
     cluster(groups, tax, blen)
     set_bins(groups)
     res = generate_results(groups, lens)
-
-    print(groups)
 
     if args.output_file:
         with open(args.output_file, "w") as file:
@@ -131,7 +127,7 @@ def cluster(groups, tax, blen):
     # 			bpck(groups, orphan_taxid, orphan_taxid, bin_len)
     # else: # default mode
 
-    ApproxSBP("1", None, groups, tax, blen)
+    ApproxSBP(tax.root_node, None, groups, tax, blen)
 
 
 def bpck(groups, node, parent, blen):
@@ -152,7 +148,7 @@ def bpck(groups, node, parent, blen):
         clusters = binpacking.to_constant_volume(
             groups[node].get_clusters_to_bpck(), blen, weight_pos=1
         )
-        print(node, groups[node].get_clusters_to_bpck())
+
         if clusters:
             if parent not in groups:
                 groups[parent] = Group()
@@ -166,7 +162,7 @@ def bpck(groups, node, parent, blen):
                 # Parse clustered results into same node (clear it before)
                 groups[parent].clear_clusters()
                 groups[parent].add_clusters_from_bpck(clusters)
-            print(groups[parent])
+
 
 def ApproxSBP(node, parent, groups, tax, blen):
     # Function to perform hiearchical bin packing recursively
