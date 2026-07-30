@@ -79,5 +79,5 @@ class Group:
         return len(self.clusters)
 
     def __repr__(self):
-        args = ["{}={}".format(k, repr(v)) for (k, v) in vars(self).items()]
+        args = [f"{k}={v!r}" for (k, v) in vars(self).items()]
         return "Group({})".format(", ".join(args))

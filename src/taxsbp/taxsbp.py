@@ -1,10 +1,12 @@
-import binpacking
-import sys
 import argparse
-from taxsbp.Group import Group
-from taxsbp.Cluster import Cluster
-from taxsbp import __version__
+import sys
+
+from binpacking.numpy import to_constant_volume
 from multitax import CustomTx
+
+from taxsbp import __version__
+from taxsbp.Cluster import Cluster
+from taxsbp.Group import Group
 
 
 def main(arguments: str = None):
@@ -91,7 +93,7 @@ def main(arguments: str = None):
                 lens[uid] = int(w)
             else:
                 print(node + " not found", file=sys.stderr)
-    
+
     # Keep only used nodes on tax
     tax.filter(lens.keys())
 
@@ -105,11 +107,11 @@ def main(arguments: str = None):
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
-
     cluster(groups, tax, blen)
     set_bins(groups)
-    res = generate_results(groups, lens)
 
+    print_stats(groups)
+    res = generate_results(groups, lens)
     if args.output_file:
         with open(args.output_file, "w") as file:
             for r in res:
@@ -153,7 +155,7 @@ def bpck(groups, node, parent, blen):
             del groups[node]
     else:
         # Perform bin packing
-        clusters = binpacking.to_constant_volume(
+        clusters = to_constant_volume(
             groups[node].get_clusters_to_bpck(), blen, weight_pos=1
         )
 
@@ -177,11 +179,10 @@ def ApproxSBP(node, parent, groups, tax, blen):
     # Recursively call to pack sorted list of children (to get always same results)
     for child in sorted(tax.children(node), key=str):
         ApproxSBP(child, node, groups, tax, blen)
-    else:
-        # If node is a leaf - no child in children[node]
-        # or
-        # After all children of a node were packed in the for loop, pack node itself into parent
-        bpck(groups, node, parent if parent is not None else node, blen)
+    # If node is a leaf - no child in children[node]
+    # or
+    # After all children of a node were packed in the for loop, pack node itself into parent
+    bpck(groups, node, parent if parent is not None else node, blen)
 
 
 def set_bins(groups):
@@ -197,6 +198,26 @@ def generate_results(groups, lens):
         for cluster in group.get_clusters():
             for seqid in cluster.get_ids():
                 yield [seqid, lens[seqid], str(cluster.get_binid())]
+
+
+def print_stats(groups):
+
+    c_lens = []
+    c_ids = []
+    cnt = 0
+    for node, group in groups.items():
+        for cluster in group.get_clusters():
+            c_ids.append(len(cluster.ids))
+            c_lens.append(cluster.length)
+            cnt += 1
+
+    print(f"Min. cluster w: {min(c_lens)}", file=sys.stderr)
+    print(f"Avg. cluster w: {sum(c_lens) / cnt}", file=sys.stderr)
+    print(f"Max. cluster w: {max(c_lens)}", file=sys.stderr)
+
+    print(f"Min. ids/cluster: {min(c_ids)}", file=sys.stderr)
+    print(f"Avg. ids/cluster: {sum(c_ids) / cnt}", file=sys.stderr)
+    print(f"Max. ids/cluster: {max(c_ids)}", file=sys.stderr)
 
 
 if __name__ == "__main__":

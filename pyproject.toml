@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
-dependencies = [ "pandas==3.*", "multitax>=1.6.0", "binpacking==1.4.3" ]
+dependencies = [ "pandas==3.*", "multitax>=1.6.0", "binpacking[numpy]==2.*" ]
 
 [project.urls]
 Homepage = "https://github.com/pirovc/taxsbp"
@@ -28,8 +28,6 @@ include-package-data = false
 
 [tool.setuptools.package-dir]
 "" = "src"
-
-
 
 [tool.setuptools_scm]
 write_to = "VERSION.txt"

@@ -31,5 +31,5 @@ class Cluster:
         self.length += cluster.get_length()
 
     def __repr__(self):
-        args = ["{}={}".format(k, repr(v)) for (k, v) in vars(self).items()]
+        args = [f"{k}={v!r}" for (k, v) in vars(self).items()]
         return "Cluster({})".format(", ".join(args))
