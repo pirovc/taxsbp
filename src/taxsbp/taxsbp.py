@@ -93,7 +93,7 @@ def main(arguments: str = None):
                 print(node + " not found", file=sys.stderr)
     
     # Keep only used nodes on tax
-    tax.filter(lens.keys(), desc=True)
+    tax.filter(lens.keys())
 
     # Define bin length
     if args.bin_len:  # user defined
