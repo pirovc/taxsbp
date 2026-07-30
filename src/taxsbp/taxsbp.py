@@ -5,11 +5,11 @@ from binpacking.numpy import to_constant_volume
 from multitax import CustomTx
 
 from taxsbp import __version__
-from taxsbp.Cluster import Cluster
-from taxsbp.Group import Group
+from taxsbp.cluster import cluster
+from taxsbp.group import group
 
 
-def main(arguments: str = None):
+def main(arguments: str | None = None):
 
     if arguments is not None:
         sys.argv = arguments
@@ -78,8 +78,8 @@ def main(arguments: str = None):
 
     args = parser.parse_args()  # read sys.argv[1:] by default
 
-    groups = dict()
-    lens = dict()
+    groups = {}
+    lens = {}
     tax = CustomTx(files=args.taxonomy_file)
 
     with open(args.input_file, "r") as infile:
@@ -88,28 +88,25 @@ def main(arguments: str = None):
             unode = tax.latest(node)
             if unode:
                 if unode not in groups:
-                    groups[unode] = Group()
-                groups[unode].add_clusters([unode], [Cluster([uid], int(w))])
+                    groups[unode] = group()
+                groups[unode].add_clusters([unode], [cluster([uid], int(w))])
                 lens[uid] = int(w)
             else:
                 print(node + " not found", file=sys.stderr)
 
     # Keep only used nodes on tax
-    tax.filter(lens.keys())
+    tax.filter(groups.keys())
 
     # Define bin length
     if args.bin_len:  # user defined
         blen = args.bin_len
-    elif (
-        args.n_bins
-    ):  # Estimate bin len based on number of requested bins or direct by user
+    elif args.n_bins:
         blen = sum([g.get_length() for g in groups.values()]) / float(args.n_bins)
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
-    cluster(groups, tax, blen)
+    clusterx(groups, tax, blen)
     set_bins(groups)
-
     print_stats(groups)
     res = generate_results(groups, lens)
     if args.output_file:
@@ -121,7 +118,7 @@ def main(arguments: str = None):
             print(*r, sep="\t", file=sys.stdout)
 
 
-def cluster(groups, tax, blen):
+def clusterx(groups, tax, blen):
     # parent->children structure for fast loookup, only for used taxids
 
     # bin_exclusive mode
@@ -144,24 +141,24 @@ def bpck(groups, node, parent, blen):
     # Perform bin packing on a single node
     # it packs the clusters on groups[node] and add to groups[parent]
     # if node and parent are equal, root was reached
-    at_root = True if node == parent else False
+    at_root = node == parent
 
     # If there is only one cluster, do not need to pack
     if groups[node].get_cluster_count() == 1:
         if not at_root:  # transfer cluster to parent if not root
             if parent not in groups:
-                groups[parent] = Group()
+                groups[parent] = group()
             groups[parent].merge(groups[node])
             del groups[node]
     else:
         # Perform bin packing
         clusters = to_constant_volume(
-            groups[node].get_clusters_to_bpck(), blen, weight_pos=1
+            groups[node].get_clusters_to_bpck(), blen, weight_pos=0
         )
 
         if clusters:
             if parent not in groups:
-                groups[parent] = Group()
+                groups[parent] = group()
             if not at_root:
                 # Parse clustered results into parent node and remove actual node
                 groups[parent].add_clusters_from_bpck(
@@ -179,6 +176,7 @@ def ApproxSBP(node, parent, groups, tax, blen):
     # Recursively call to pack sorted list of children (to get always same results)
     for child in sorted(tax.children(node), key=str):
         ApproxSBP(child, node, groups, tax, blen)
+
     # If node is a leaf - no child in children[node]
     # or
     # After all children of a node were packed in the for loop, pack node itself into parent
@@ -187,17 +185,17 @@ def ApproxSBP(node, parent, groups, tax, blen):
 
 def set_bins(groups):
     binid_count = -1
-    for v, group in groups.items():
-        for cluster in group.get_clusters():
+    for g in groups.values():
+        for c in g.get_clusters():
             binid_count += 1
-            cluster.set_binid(binid_count)
+            c.set_binid(binid_count)
 
 
 def generate_results(groups, lens):
-    for v, group in groups.items():
-        for cluster in group.get_clusters():
-            for seqid in cluster.get_ids():
-                yield [seqid, lens[seqid], str(cluster.get_binid())]
+    for g in groups.values():
+        for c in g.get_clusters():
+            for seqid in c.get_ids():
+                yield [seqid, lens[seqid], str(c.get_binid())]
 
 
 def print_stats(groups):
@@ -205,10 +203,10 @@ def print_stats(groups):
     c_lens = []
     c_ids = []
     cnt = 0
-    for node, group in groups.items():
-        for cluster in group.get_clusters():
-            c_ids.append(len(cluster.ids))
-            c_lens.append(cluster.length)
+    for g in groups.values():
+        for c in g.get_clusters():
+            c_ids.append(len(c.ids))
+            c_lens.append(c.length)
             cnt += 1
 
     print(f"Min. cluster w: {min(c_lens)}", file=sys.stderr)
