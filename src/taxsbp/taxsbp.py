@@ -144,7 +144,6 @@ def bpck(groups, node, parent, blen):
     # if node and parent are equal, root was reached
     at_root = True if node == parent else False
 
-    print(node, parent)
     # If there is only one cluster, do not need to pack
     if groups[node].get_cluster_count() == 1:
         if not at_root:  # transfer cluster to parent if not root
