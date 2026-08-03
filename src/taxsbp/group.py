@@ -31,6 +31,8 @@ class group:
 
         # For each cluster returned by binpaking
         for c in bpck_clusters:
+            if not c:
+                continue
             # split clusters in their respective binid assigned (or None)
             slen = 0
             ids = []
@@ -43,12 +45,10 @@ class group:
 
     def join_clusters(self):
         # Join all clusters inside the group, do not join clusters wiht different binids
-        final_clusters = {}
+        final_clusters = cluster()
         for c in self.clusters:
-            if c.binid not in final_clusters:
-                final_clusters[c.binid] = cluster(binid=c.binid)
-            final_clusters[c.binid].update(c)
-        self.clusters = list(final_clusters.values())
+            final_clusters.update(c)
+        self.clusters = [final_clusters]
 
     def merge(self, group):
         self.add_clusters(group.get_leaves(), group.get_clusters())

@@ -51,8 +51,20 @@ def main(arguments: str | None = None):
         help="",
     )
     parser.add_argument(
+        "--pre-cluster-file",
+        type=str,
+        default="",
+        help="",
+    )
+    parser.add_argument(
         "-e",
         "--bin-exclusive",
+        type=str,
+        default="",
+        help="",
+    )
+    parser.add_argument(
+        "--bin-exclusive-file",
         type=str,
         default="",
         help="",
@@ -87,13 +99,18 @@ def main(arguments: str | None = None):
             uid, w, node = line.rstrip().split("\t")
             unode = tax.latest(node)
             if unode:
+                if unode != node:
+                    print(f"{node} -> {unode}", file=sys.stderr)
                 if unode not in groups:
                     groups[unode] = group()
+
                 groups[unode].add_clusters([unode], [cluster([uid], int(w))])
+
                 lens[uid] = int(w)
             else:
                 print(node + " not found", file=sys.stderr)
 
+    print(groups)
     # Keep only used nodes on tax
     tax.filter(groups.keys())
 
@@ -105,7 +122,13 @@ def main(arguments: str | None = None):
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
-    clusterx(groups, tax, blen)
+    if args.pre_cluster:
+        pre_cluster_rank(args.pre_cluster, groups, tax)
+    elif args.pre_cluster_file:
+        pre_cluster_file(args.pre_cluster_file, groups, tax)
+
+    clusterx(groups, tax, blen, args.bin_exclusive)
+
     set_bins(groups)
     print_stats(groups)
     res = generate_results(groups, lens)
@@ -118,29 +141,44 @@ def main(arguments: str | None = None):
             print(*r, sep="\t", file=sys.stdout)
 
 
-def clusterx(groups, tax, blen):
-    # parent->children structure for fast loookup, only for used taxids
+def clusterx(groups, tax, blen, bin_exclusive_rank):
+    if bin_exclusive_rank:
+        rank_taxids, orphan_taxids = get_rank_taxids(bin_exclusive_rank, groups, tax)
+        if rank_taxids:
+            # clustering directly on the rank chosen, recursion required for children nodes
+            for rank_taxid in rank_taxids:
+                ApproxSBP(rank_taxid, None, groups, tax, blen)
+        if orphan_taxids:
+            # clustering directly on the taxid level, no recursion to children nodes necessary
+            for orphan_taxid in orphan_taxids:
+                bpck(groups, orphan_taxid, orphan_taxid, blen)
+    else:  # default mode
+        ApproxSBP(tax.root_node, None, groups, tax, blen)
 
-    # bin_exclusive mode
-    # if bin_exclusive:
-    # 	rank_taxids, orphan_taxids = get_rank_taxids(groups, taxnodes, bin_exclusive, specialization)
-    # 	if rank_taxids:
-    # 		# clustering directly on the rank chosen, recursion required for children nodes
-    # 		for rank_taxid in rank_taxids:
-    # 			ApproxSBP(rank_taxid, None, groups, children, bin_len)
-    # 	if orphan_taxids:
-    # 		# clustering directly on the taxid level, no recursion to children nodes necessary
-    # 		for orphan_taxid in orphan_taxids:
-    # 			bpck(groups, orphan_taxid, orphan_taxid, bin_len)
-    # else: # default mode
 
-    ApproxSBP(tax.root_node, None, groups, tax, blen)
+def get_rank_taxids(bin_exclusive_rank, groups, tax):
+    rank_taxids = set()
+    orphan_taxids = set()
+    # if not working on leaf level
+    if bin_exclusive_rank != "leaves":
+        for leaf in groups:
+            t = tax.parent_rank(leaf, rank=bin_exclusive_rank)
+            if t == tax.undefined_node:
+                orphan_taxids.add(leaf)
+            else:
+                rank_taxids.add(t)
+    else:
+        orphan_taxids = set(groups.keys())
+    return rank_taxids, orphan_taxids
 
 
 def bpck(groups, node, parent, blen):
     # Perform bin packing on a single node
     # it packs the clusters on groups[node] and add to groups[parent]
     # if node and parent are equal, root was reached
+    if node not in groups:
+        return
+
     at_root = node == parent
 
     # If there is only one cluster, do not need to pack
@@ -216,6 +254,42 @@ def print_stats(groups):
     print(f"Min. ids/cluster: {min(c_ids)}", file=sys.stderr)
     print(f"Avg. ids/cluster: {sum(c_ids) / cnt}", file=sys.stderr)
     print(f"Max. ids/cluster: {max(c_ids)}", file=sys.stderr)
+
+
+def pre_cluster_rank(rank, groups, tax):
+    if pre_cluster_rank != "leaves":
+        # Join groups sharing the same parent node of the chosen rank
+        for node in list(groups.keys()):
+            txid_rank = tax.parent_rank(node, rank=rank)
+            # If not root (rank not on lineage) and not the same, regroup node into parent node
+            if txid_rank != tax.undefined_node and txid_rank != node:
+                if txid_rank not in groups:
+                    groups[txid_rank] = group()
+                groups[txid_rank].merge(groups[node])
+                del groups[node]  # After moving it to the parent, remove it from leaves
+
+    # Join clusters grouped together
+    for g in groups.values():
+        g.join_clusters()
+
+
+def pre_cluster_file(file, groups, tax):
+
+    # parse pre-cluster file
+    # loop in groups, detecting where the ids are
+    # get leaves from pre-clustered ids, lca to set group node
+
+    pcluster = []
+    with open(file, "r") as fi:
+        for line in fi:
+            pcluster.append(set(line.rstrip().split("\t")))
+
+    id_node = {}
+    for n, g in groups.items():
+        for c in g.get_clusters():
+            id_node[c.ids.pop()] = n
+
+    print(id_node)
 
 
 if __name__ == "__main__":
