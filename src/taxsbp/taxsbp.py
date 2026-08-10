@@ -53,7 +53,7 @@ def main(arguments: str | None = None):
     parser.add_argument(
         "--pre-cluster-file",
         type=str,
-        default="",
+        default="has precedence over --pre-cluster",
         help="",
     )
     parser.add_argument(
@@ -90,27 +90,11 @@ def main(arguments: str | None = None):
 
     args = parser.parse_args()  # read sys.argv[1:] by default
 
-    groups = {}
-    lens = {}
     tax = CustomTx(files=args.taxonomy_file)
+    groups, lens = parse_input(
+        args.input_file, tax, args.pre_cluster, args.pre_cluster_file
+    )
 
-    with open(args.input_file, "r") as infile:
-        for line in infile:
-            uid, w, node = line.rstrip().split("\t")
-            unode = tax.latest(node)
-            if unode:
-                if unode != node:
-                    print(f"{node} -> {unode}", file=sys.stderr)
-                if unode not in groups:
-                    groups[unode] = group()
-
-                groups[unode].add_clusters([unode], [cluster([uid], int(w))])
-
-                lens[uid] = int(w)
-            else:
-                print(node + " not found", file=sys.stderr)
-
-    print(groups)
     # Keep only used nodes on tax
     tax.filter(groups.keys())
 
@@ -121,11 +105,6 @@ def main(arguments: str | None = None):
         blen = sum([g.get_length() for g in groups.values()]) / float(args.n_bins)
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
-
-    if args.pre_cluster:
-        pre_cluster_rank(args.pre_cluster, groups, tax)
-    elif args.pre_cluster_file:
-        pre_cluster_file(args.pre_cluster_file, groups, tax)
 
     clusterx(groups, tax, blen, args.bin_exclusive)
 
@@ -256,40 +235,67 @@ def print_stats(groups):
     print(f"Max. ids/cluster: {max(c_ids)}", file=sys.stderr)
 
 
-def pre_cluster_rank(rank, groups, tax):
-    if pre_cluster_rank != "leaves":
-        # Join groups sharing the same parent node of the chosen rank
-        for node in list(groups.keys()):
-            txid_rank = tax.parent_rank(node, rank=rank)
-            # If not root (rank not on lineage) and not the same, regroup node into parent node
-            if txid_rank != tax.undefined_node and txid_rank != node:
-                if txid_rank not in groups:
-                    groups[txid_rank] = group()
-                groups[txid_rank].merge(groups[node])
-                del groups[node]  # After moving it to the parent, remove it from leaves
+def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
+    groups = {}
+    lens = {}
+    pre_clustered_nodes = set()
+    pre_clustered_ids = {}
+    if pre_cluster_file:
+        uid_node = {}
+        with open(filename, "r") as infile:
+            for line in infile:
+                uid, _, node = line.rstrip().split("\t")
+                unode = tax.latest(node)
+                if unode and unode != node:
+                    print(f"{node} -> {unode}", file=sys.stderr)
+                uid_node[uid] = unode
 
-    # Join clusters grouped together
-    for g in groups.values():
-        g.join_clusters()
+        with open(pre_cluster_file, "r") as pinfile:
+            for line in pinfile:
+                clusters = line.rstrip().split("\t")
+                lca = tax.lca([uid_node[uid] for uid in clusters])
+                pre_clustered_ids.update({uid: lca for uid in clusters})
+                pre_clustered_nodes.add(lca)
 
+    with open(filename, "r") as infile:
+        for line in infile:
+            uid, w, node = line.rstrip().split("\t")
 
-def pre_cluster_file(file, groups, tax):
+            if pre_cluster_file and uid in pre_clustered_ids:
+                unode = pre_clustered_ids[uid]
+            else:
+                unode = tax.latest(node)
+                if unode and unode != node:
+                    print(f"{node} -> {unode}", file=sys.stderr)
 
-    # parse pre-cluster file
-    # loop in groups, detecting where the ids are
-    # get leaves from pre-clustered ids, lca to set group node
+            # Pre-cluster by rank
+            if pre_cluster_rank:
+                if pre_cluster_rank != "leaves":
+                    pnode = tax.parent_rank(unode, rank=pre_cluster_rank)
+                    if pnode != tax.undefined_node:
+                        unode = pnode
+                pre_clustered_nodes.add(unode)
 
-    pcluster = []
-    with open(file, "r") as fi:
-        for line in fi:
-            pcluster.append(set(line.rstrip().split("\t")))
+            if unode != tax.undefined_node:
+                if unode not in groups:
+                    groups[unode] = group()
 
-    id_node = {}
-    for n, g in groups.items():
-        for c in g.get_clusters():
-            id_node[c.ids.pop()] = n
+                groups[unode].add_clusters([unode], [cluster([uid], int(w))])
+                lens[uid] = int(w)
+            else:
+                print(node + " not found", file=sys.stderr)
 
-    print(id_node)
+    print(groups)
+    # Join pre-clustered entries
+    # Only join selected unique ids if pre_cluster_file
+    if pre_cluster_rank or pre_cluster_file:
+        for node, g in groups.items():
+            if node in pre_clustered_nodes:
+                g.join_clusters(
+                    ids=[{i} for i in pre_clustered_ids] if pre_clustered_ids else []
+                )
+    print(groups)
+    return groups, lens
 
 
 if __name__ == "__main__":

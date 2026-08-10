@@ -43,12 +43,23 @@ class group:
         if leaves:
             self.leaves.update(leaves)
 
-    def join_clusters(self):
+    def join_clusters(self, ids: list | None = None):
         # Join all clusters inside the group, do not join clusters wiht different binids
-        final_clusters = cluster()
+        joined_clusters = cluster()
+        single_clusters = []
         for c in self.clusters:
-            final_clusters.update(c)
-        self.clusters = [final_clusters]
+            if ids:
+                if c.ids in ids:
+                    joined_clusters.update(c)
+                else:
+                    single_clusters.append(c)
+            else:
+                joined_clusters.update(c)
+
+        if joined_clusters.ids:
+            self.clusters = single_clusters + [joined_clusters]
+        else:
+            self.clusters = single_clusters
 
     def merge(self, group):
         self.add_clusters(group.get_leaves(), group.get_clusters())
