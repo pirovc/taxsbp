@@ -2,13 +2,6 @@ class cluster:
     def __init__(self, ids: list | None = None, length: int = 0):
         self.length = length
         self.ids = set(ids) if ids is not None else set()
-        self.binid = None
-
-    def set_binid(self, binid):
-        self.binid = binid
-
-    def get_binid(self):
-        return self.binid
 
     def get_tuples(self):
         return (self.get_length(),) + tuple(self.get_ids())
@@ -18,10 +11,6 @@ class cluster:
 
     def get_ids(self):
         return self.ids
-
-    def add(self, uid, length):
-        self.ids.add(uid)
-        self.length += length
 
     def update(self, cluster):
         self.ids.update(cluster.get_ids())
