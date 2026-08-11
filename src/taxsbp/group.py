@@ -3,15 +3,10 @@ from taxsbp.cluster import cluster
 
 class group:
     def __init__(self):
-        self.leaves = set()
         self.clusters = []
 
-    def add_clusters(self, leaves, clusters):
-        self.leaves.update(leaves)
+    def add_clusters(self, clusters):
         self.clusters.extend(clusters)
-
-    def get_leaves(self):
-        return self.leaves
 
     def get_clusters(self):
         return self.clusters
@@ -25,7 +20,7 @@ class group:
         # Example: [(500,A,B,C),(300,D),(200,E)]
         return [c.get_tuples() for c in self.clusters]
 
-    def add_clusters_from_bpck(self, bpck_clusters, leaves: set = ()):
+    def add_clusters_from_bpck(self, bpck_clusters):
         # Parse binpacking output - list of lists with tuples generated with get_clusters_to_bpck
         # Example: [[(500,A,B,C)],[(300,D),(200,E)]]
 
@@ -40,11 +35,9 @@ class group:
                 slen += e[0]
                 ids.extend(e[1:])
             self.clusters.append(cluster(ids=ids, length=slen))
-        if leaves:
-            self.leaves.update(leaves)
 
     def join_clusters(self, ids: list | None = None):
-        # Join all clusters inside the group, do not join clusters wiht different binids
+        # Join all clusters inside the group or just specific ids
         joined_clusters = cluster()
         single_clusters = []
         for c in self.clusters:
@@ -62,7 +55,7 @@ class group:
             self.clusters = single_clusters
 
     def merge(self, group):
-        self.add_clusters(group.get_leaves(), group.get_clusters())
+        self.add_clusters(group.get_clusters())
 
     def get_length(self):
         return sum([c.get_length() for c in self.clusters])

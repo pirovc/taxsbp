@@ -53,8 +53,8 @@ def main(arguments: str | None = None):
     parser.add_argument(
         "--pre-cluster-file",
         type=str,
-        default="has precedence over --pre-cluster",
-        help="",
+        default="",
+        help="has precedence over --pre-cluster",
     )
     parser.add_argument(
         "-e",
@@ -90,9 +90,16 @@ def main(arguments: str | None = None):
 
     args = parser.parse_args()  # read sys.argv[1:] by default
 
+    bin_exclusive_prefix = "@@be@@-"
     tax = CustomTx(files=args.taxonomy_file)
     groups, lens = parse_input(
-        args.input_file, tax, args.pre_cluster, args.pre_cluster_file
+        args.input_file,
+        tax,
+        args.pre_cluster,
+        args.pre_cluster_file,
+        args.bin_exclusive,
+        args.bin_exclusive_file,
+        bin_exclusive_prefix,
     )
 
     # Keep only used nodes on tax
@@ -106,7 +113,19 @@ def main(arguments: str | None = None):
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
-    clusterx(groups, tax, blen, args.bin_exclusive)
+    # Cluster bin exclusive groups separetely
+    need_recursive = False
+    if args.bin_exclusive or args.bin_exclusive_file:
+        for node in groups:
+            if node.startswith(bin_exclusive_prefix):
+                bpck(groups, node, node, blen)
+            else:
+                need_recursive = True
+    else:
+        need_recursive = True
+
+    if need_recursive:
+        ApproxSBP(tax.root_node, None, groups, tax, blen)
 
     set_bins(groups)
     print_stats(groups)
@@ -118,37 +137,6 @@ def main(arguments: str | None = None):
     else:
         for r in res:
             print(*r, sep="\t", file=sys.stdout)
-
-
-def clusterx(groups, tax, blen, bin_exclusive_rank):
-    if bin_exclusive_rank:
-        rank_taxids, orphan_taxids = get_rank_taxids(bin_exclusive_rank, groups, tax)
-        if rank_taxids:
-            # clustering directly on the rank chosen, recursion required for children nodes
-            for rank_taxid in rank_taxids:
-                ApproxSBP(rank_taxid, None, groups, tax, blen)
-        if orphan_taxids:
-            # clustering directly on the taxid level, no recursion to children nodes necessary
-            for orphan_taxid in orphan_taxids:
-                bpck(groups, orphan_taxid, orphan_taxid, blen)
-    else:  # default mode
-        ApproxSBP(tax.root_node, None, groups, tax, blen)
-
-
-def get_rank_taxids(bin_exclusive_rank, groups, tax):
-    rank_taxids = set()
-    orphan_taxids = set()
-    # if not working on leaf level
-    if bin_exclusive_rank != "leaves":
-        for leaf in groups:
-            t = tax.parent_rank(leaf, rank=bin_exclusive_rank)
-            if t == tax.undefined_node:
-                orphan_taxids.add(leaf)
-            else:
-                rank_taxids.add(t)
-    else:
-        orphan_taxids = set(groups.keys())
-    return rank_taxids, orphan_taxids
 
 
 def bpck(groups, node, parent, blen):
@@ -178,9 +166,7 @@ def bpck(groups, node, parent, blen):
                 groups[parent] = group()
             if not at_root:
                 # Parse clustered results into parent node and remove actual node
-                groups[parent].add_clusters_from_bpck(
-                    clusters, leaves=groups[node].get_leaves()
-                )
+                groups[parent].add_clusters_from_bpck(clusters)
                 del groups[node]
             else:  # if root
                 # Parse clustered results into same node (clear it before)
@@ -235,13 +221,24 @@ def print_stats(groups):
     print(f"Max. ids/cluster: {max(c_ids)}", file=sys.stderr)
 
 
-def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
+def parse_input(
+    filename,
+    tax,
+    pre_cluster_rank,
+    pre_cluster_file,
+    bin_exclusive_rank,
+    bin_exclusive_file,
+    bin_exclusive_prefix,
+):
     groups = {}
     lens = {}
     pre_clustered_nodes = set()
     pre_clustered_ids = {}
+
     if pre_cluster_file:
         uid_node = {}
+
+        # Map unique id to node from input file
         with open(filename, "r") as infile:
             for line in infile:
                 uid, _, node = line.rstrip().split("\t")
@@ -250,6 +247,7 @@ def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
                     print(f"{node} -> {unode}", file=sys.stderr)
                 uid_node[uid] = unode
 
+        # get LCA of the ids on the pre cluster file
         with open(pre_cluster_file, "r") as pinfile:
             for line in pinfile:
                 clusters = line.rstrip().split("\t")
@@ -257,18 +255,35 @@ def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
                 pre_clustered_ids.update({uid: lca for uid in clusters})
                 pre_clustered_nodes.add(lca)
 
+    # Mark bin exclusive entries separetely from the taxonomy
+    bin_exclusive_ids = {}
+    if bin_exclusive_file:
+        # get LCA of the ids on the pre cluster file
+        with open(bin_exclusive_file, "r") as binfile:
+            for c, line in enumerate(binfile):
+                bins = line.rstrip().split("\t")
+                bin_exclusive_ids.update(
+                    {uid: f"{bin_exclusive_prefix}{c}" for uid in bins}
+                )
+
     with open(filename, "r") as infile:
         for line in infile:
             uid, w, node = line.rstrip().split("\t")
 
-            if pre_cluster_file and uid in pre_clustered_ids:
-                unode = pre_clustered_ids[uid]
+            if bin_exclusive_file and uid in bin_exclusive_ids:
+                unode = bin_exclusive_ids[
+                    uid
+                ]  # Add node as custom node with bin exclusive prefix
+            elif pre_cluster_file and uid in pre_clustered_ids:
+                unode = pre_clustered_ids[
+                    uid
+                ]  # get LCA node if pre_cluster_file was given
             else:
                 unode = tax.latest(node)
                 if unode and unode != node:
                     print(f"{node} -> {unode}", file=sys.stderr)
 
-            # Pre-cluster by rank
+            # If pre_cluster_file, get parent rank node
             if pre_cluster_rank:
                 if pre_cluster_rank != "leaves":
                     pnode = tax.parent_rank(unode, rank=pre_cluster_rank)
@@ -276,16 +291,24 @@ def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
                         unode = pnode
                 pre_clustered_nodes.add(unode)
 
+            if bin_exclusive_rank:
+                # Use the taxid of the rank for the entry
+                # If entry does not have the rank, add provided taxid as own group
+                if bin_exclusive_rank != "leaves":
+                    pnode = tax.parent_rank(unode, rank=bin_exclusive_rank)
+                    if pnode != tax.undefined_node:
+                        unode = f"{bin_exclusive_prefix}{pnode}"
+                else:
+                    unode = f"{bin_exclusive_prefix}{unode}"
+
             if unode != tax.undefined_node:
                 if unode not in groups:
                     groups[unode] = group()
-
-                groups[unode].add_clusters([unode], [cluster([uid], int(w))])
+                groups[unode].add_clusters([cluster([uid], int(w))])
                 lens[uid] = int(w)
             else:
                 print(node + " not found", file=sys.stderr)
 
-    print(groups)
     # Join pre-clustered entries
     # Only join selected unique ids if pre_cluster_file
     if pre_cluster_rank or pre_cluster_file:
@@ -294,7 +317,7 @@ def parse_input(filename, tax, pre_cluster_rank, pre_cluster_file):
                 g.join_clusters(
                     ids=[{i} for i in pre_clustered_ids] if pre_clustered_ids else []
                 )
-    print(groups)
+
     return groups, lens
 
 
