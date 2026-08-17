@@ -14,7 +14,7 @@ Documentation = "https://pirovc.github.io/taxsbp"
 Repository = "https://github.com/pirovc/taxsbp"
 
 [project.optional-dependencies]
-dev = [ "ruff", "coverage", "pdoc" ]
+dev = [ "ruff", "coverage", "pdoc", "pytest", "pandas" ]
 
 [project.scripts]
 taxsbp = "taxsbp.taxsbp:main"

@@ -1,6 +1,7 @@
 import argparse
 import sys
-from statistics import stdev, median, mean
+from statistics import mean, median, stdev
+
 from binpacking.numpy import to_constant_volume
 from multitax import CustomTx
 
@@ -9,11 +10,7 @@ from taxsbp.cluster import cluster
 from taxsbp.group import group
 
 
-def main(arguments: str | None = None):
-
-    if arguments is not None:
-        sys.argv = arguments
-
+def main():
     parser = argparse.ArgumentParser(
         prog="taxsbp", conflict_handler="resolve", add_help=True
     )
@@ -24,12 +21,15 @@ def main(arguments: str | None = None):
         help="Input file: unique_id <tab> weigth <tab> node",
     )
     parser.add_argument(
-        "-o",
-        "--output-file",
-        help="Output file: id <tab> weigth <tab> node <tab> bin. Default: STDOUT",
+        "-t",
+        "--taxonomy-file",
+        required=True,
+        help="Taxonomy file: node <tab> parent <tab> rank",
     )
     parser.add_argument(
-        "-t", "--taxonomy-file", help="Taxonomy file: node <tab> parent <tab> rank"
+        "-o",
+        "--output-file",
+        help="Output file: id <tab> weigth <tab> target node <tab> binno. Default: STDOUT",
     )
     parser.add_argument(
         "-l",
@@ -71,10 +71,10 @@ def main(arguments: str | None = None):
     )
     parser.add_argument(
         "-s",
-        "--silent",
+        "--stats",
         default=False,
         action="store_true",
-        help="Ignore warning",
+        help="Output stats to stderr",
     )
     parser.add_argument(
         "-v",
@@ -88,34 +88,63 @@ def main(arguments: str | None = None):
         parser.print_help()
         return False
 
-    args = parser.parse_args()  # read sys.argv[1:] by default
+    args = parser.parse_args()
+    opt = vars(args)
 
+    bins, sts = taxsbp(**opt)
+
+    # Print bins to STDOUT if called cli without --output-file
+    if not args.output_file:
+        for b in bins:
+            print(*b, sep="\t")
+
+    # Print stats to STDOUT if called cli with --stats
+    if args.stats:
+        import pprint
+
+        pprint.pprint(sts, compact=True, sort_dicts=False, stream=sys.stderr)
+
+    sys.exit(0)
+
+
+def taxsbp(
+    input_file: str,
+    taxonomy_file: str,
+    output_file: str | None = None,
+    bin_len: int | None = None,
+    n_bins: int | None = None,
+    pre_cluster: str | None = None,
+    pre_cluster_file: str | None = None,
+    bin_exclusive: str | None = None,
+    bin_exclusive_file: str | None = None,
+    stats: bool = False,
+):
     bin_exclusive_prefix = "@@be@@-"
-    tax = CustomTx(files=args.taxonomy_file)
-    groups, lens = parse_input(
-        args.input_file,
+    tax = CustomTx(files=taxonomy_file)
+    groups, info = parse_input(
+        input_file,
         tax,
-        args.pre_cluster,
-        args.pre_cluster_file,
-        args.bin_exclusive,
-        args.bin_exclusive_file,
+        pre_cluster,
+        pre_cluster_file,
+        bin_exclusive,
+        bin_exclusive_file,
         bin_exclusive_prefix,
     )
 
-    # Keep only used nodes on tax
-    tax.filter(groups.keys())
+    # Keep only used nodes on taxonomy for faster
+    tax.filter([n for _, n in info.values()])
 
     # Define bin length
-    if args.bin_len:  # user defined
-        blen = args.bin_len
-    elif args.n_bins:
-        blen = sum([g.get_length() for g in groups.values()]) / float(args.n_bins)
+    if bin_len:  # user defined
+        blen = bin_len
+    elif n_bins:
+        blen = int(sum([g.get_length() for g in groups.values()]) / float(n_bins))
     else:  # Default bin length on the max group length
         blen = max([g.get_length() for g in groups.values()])
 
     # Cluster bin exclusive groups indivudually
     need_recursive = False
-    if args.bin_exclusive or args.bin_exclusive_file:
+    if bin_exclusive or bin_exclusive_file:
         for node in groups:
             if node.startswith(bin_exclusive_prefix):
                 bpck(groups, node, node, blen)
@@ -127,9 +156,14 @@ def main(arguments: str | None = None):
     if need_recursive:
         ApproxSBP(tax.root_node, None, groups, tax, blen)
 
-    print_stats(groups, blen)
+    if output_file:
+        with open(output_file, "w") as outf:
+            for b in generate_bins(groups, info):
+                print(*b, sep="\t", file=outf)
 
-    print_bins(groups, lens, args.output_file)
+    sts = generate_stats(generate_bins(groups, info), info, blen) if stats else None
+
+    return list(generate_bins(groups, info)), sts
 
 
 def bpck(groups, node, parent, blen):
@@ -179,42 +213,43 @@ def ApproxSBP(node, parent, groups, tax, blen):
     bpck(groups, node, parent if parent is not None else node, blen)
 
 
-def print_bins(groups, lens, output_file):
+def generate_bins(groups, info):
     binid = 0
-    outfile = open(output_file, "w") if output_file else sys.stderr  # noqa: SIM115
     for g in groups.values():
         for c in g.get_clusters():
             for uid in c.get_ids():
-                print(uid, lens[uid], binid, sep="\t", file=outfile)
+                yield [uid, info[uid][0], info[uid][1], binid]
             binid += 1
-    if output_file:
-        outfile.close()
 
 
-def print_stats(groups, blen):
+def generate_stats(bins, info, blen):
+    cnts = {}
+    for uid, weigth, _, binid in bins:
+        if binid not in cnts:
+            cnts[binid] = {"nodes": set(), "ids": set(), "weight": 0}
+        cnts[binid]["nodes"].add(info[uid][1])
+        cnts[binid]["ids"].add(uid)
+        cnts[binid]["weight"] += weigth
 
-    c_lens = []
-    c_ids = []
-    cnt = 0
-    for g in groups.values():
-        for c in g.get_clusters():
-            c_ids.append(len(c.ids))
-            c_lens.append(c.length)
-            cnt += 1
+    sts = {}
 
-    print(f"Target weigth: {blen}", file=sys.stderr)
-    print("Weigths")
-    print(f" Min : {min(c_lens)}", file=sys.stderr)
-    print(f" Max : {max(c_lens)}", file=sys.stderr)
-    print(f" Avg : {mean(c_lens)}", file=sys.stderr)
-    print(f" Med : {median(c_lens)}", file=sys.stderr)
-    print(f" Sdev: {stdev(c_lens)}", file=sys.stderr)
-    print("Entry per bins")
-    print(f" Min : {min(c_ids)}", file=sys.stderr)
-    print(f" Max : {max(c_ids)}", file=sys.stderr)
-    print(f" Avg : {mean(c_ids)}", file=sys.stderr)
-    print(f" Med : {median(c_ids)}", file=sys.stderr)
-    print(f" SDev: {stdev(c_ids)}", file=sys.stderr)
+    def general_stats(vals):
+        return {
+            "min": min(vals),
+            "max": max(vals),
+            "avg": mean(vals),
+            "med": median(vals),
+            "sd": stdev(vals) if len(vals) > 1 else None,
+        }
+
+    sts["target_weigth"] = blen
+    sts["total_bins"] = binid + 1
+    sts["weigths"] = general_stats([c["weight"] for c in cnts.values()])
+    sts["ids"] = general_stats([len(c["ids"]) for c in cnts.values()])
+    sts["nodes"] = general_stats([len(c["nodes"]) for c in cnts.values()])
+
+    return sts
+
 
 def parse_input(
     filename,
@@ -226,7 +261,7 @@ def parse_input(
     bin_exclusive_prefix,
 ):
     groups = {}
-    lens = {}
+    info = {}
     pre_clustered_nodes = set()
     pre_clustered_ids = {}
 
@@ -278,29 +313,32 @@ def parse_input(
                 if unode and unode != node:
                     print(f"{node} -> {unode}", file=sys.stderr)
 
-            # If pre_cluster_file, get parent rank node
+            # Get parent rank node
             if pre_cluster_rank:
-                if pre_cluster_rank != "leaves":
+                if pre_cluster_rank == "leaves":
+                    pre_clustered_nodes.add(unode)
+                else:
+                    # Only add to pre-cluster if given rank is available
                     pnode = tax.parent_rank(unode, rank=pre_cluster_rank)
                     if pnode != tax.undefined_node:
                         unode = pnode
-                pre_clustered_nodes.add(unode)
+                        pre_clustered_nodes.add(unode)
 
             if bin_exclusive_rank:
                 # Use the taxid of the rank for the entry
                 # If entry does not have the rank keep as a loose node (to be clustered)
-                if bin_exclusive_rank != "leaves":
+                if bin_exclusive_rank == "leaves":
+                    unode = f"{bin_exclusive_prefix}{unode}"
+                else:
                     pnode = tax.parent_rank(unode, rank=bin_exclusive_rank)
                     if pnode != tax.undefined_node:
                         unode = f"{bin_exclusive_prefix}{pnode}"
-                else:
-                    unode = f"{bin_exclusive_prefix}{unode}"
 
             if unode != tax.undefined_node:
                 if unode not in groups:
                     groups[unode] = group()
                 groups[unode].add_clusters([cluster([uid], int(w))])
-                lens[uid] = int(w)
+                info[uid] = (int(w), unode.replace(bin_exclusive_prefix, "", 1))
             else:
                 print(node + " not found", file=sys.stderr)
 
@@ -313,7 +351,7 @@ def parse_input(
                     ids=[{i} for i in pre_clustered_ids] if pre_clustered_ids else []
                 )
 
-    return groups, lens
+    return groups, info
 
 
 if __name__ == "__main__":
