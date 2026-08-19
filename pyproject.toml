@@ -33,5 +33,5 @@ include-package-data = false
 write_to = "VERSION.txt"
 
 [tool.ruff]
-include = [ "pyproject.toml", "src/taxsbp/*.py"]
+include = [ "pyproject.toml", "src/taxsbp/*.py", "tests/taxsbp/*.py"]
 

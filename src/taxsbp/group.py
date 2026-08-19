@@ -8,11 +8,22 @@ class group:
     def add_clusters(self, clusters):
         self.clusters.extend(clusters)
 
-    def get_clusters(self):
-        return self.clusters
+    def get_clusters(self, with_id=""):
+        if with_id:
+            for c in self.clusters:
+                if with_id in c.ids:
+                    return c
+        else:
+            return self.clusters
 
-    def clear_clusters(self):
-        self.clusters = []
+    def clear_clusters(self, with_id=""):
+        if with_id:
+            for i, c in enumerate(self.clusters):
+                if with_id in c.ids:
+                    del self.clusters[i]
+                    break
+        else:
+            self.clusters = []
 
     def get_clusters_to_bpck(self):
         # Return list of tuples with the clusters in the format necessary for the binpacking
@@ -28,31 +39,13 @@ class group:
         for c in bpck_clusters:
             if not c:
                 continue
-            # split clusters in their respective binid assigned (or None)
+
             slen = 0
             ids = []
             for e in c:
                 slen += e[0]
                 ids.extend(e[1:])
             self.clusters.append(cluster(ids=ids, length=slen))
-
-    def join_clusters(self, ids: list | None = None):
-        # Join all clusters inside the group or just specific ids
-        joined_clusters = cluster()
-        single_clusters = []
-        for c in self.clusters:
-            if ids:
-                if c.ids in ids:
-                    joined_clusters.update(c)
-                else:
-                    single_clusters.append(c)
-            else:
-                joined_clusters.update(c)
-
-        if joined_clusters.ids:
-            self.clusters = single_clusters + [joined_clusters]
-        else:
-            self.clusters = single_clusters
 
     def merge(self, group):
         self.add_clusters(group.get_clusters())

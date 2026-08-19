@@ -121,7 +121,17 @@ def taxsbp(
 ):
     bin_exclusive_prefix = "@@be@@-"
     tax = CustomTx(files=taxonomy_file)
-    groups, info = parse_input(
+    # groups, info = parse_input(
+    #     input_file,
+    #     tax,
+    #     pre_cluster,
+    #     pre_cluster_file,
+    #     bin_exclusive,
+    #     bin_exclusive_file,
+    #     bin_exclusive_prefix,
+    # )
+
+    groups, info = parse_input3(
         input_file,
         tax,
         pre_cluster,
@@ -251,7 +261,7 @@ def generate_stats(bins, info, blen):
     return sts
 
 
-def parse_input(
+def parse_input3(
     filename,
     tax,
     pre_cluster_rank,
@@ -260,97 +270,118 @@ def parse_input(
     bin_exclusive_file,
     bin_exclusive_prefix,
 ):
-    groups = {}
+    # Parse input file into info dict
     info = {}
-    pre_clustered_nodes = set()
-    pre_clustered_ids = {}
-
-    if pre_cluster_file:
-        uid_node = {}
-
-        # Map unique id to node from input file
-        with open(filename, "r") as infile:
-            for line in infile:
-                uid, _, node = line.rstrip().split("\t")
-                unode = tax.latest(node)
-                if unode and unode != node:
-                    print(f"{node} -> {unode}", file=sys.stderr)
-                uid_node[uid] = unode
-
-        # get LCA of the ids on the pre cluster file
-        with open(pre_cluster_file, "r") as pinfile:
-            for line in pinfile:
-                clusters = line.rstrip().split("\t")
-                lca = tax.lca([uid_node[uid] for uid in clusters])
-                pre_clustered_ids.update({uid: lca for uid in clusters})
-                pre_clustered_nodes.add(lca)
-
-    # Mark bin exclusive entries with prefix to be separated from the taxonomy tree
-    bin_exclusive_ids = {}
-    if bin_exclusive_file:
-        # get LCA of the ids on the pre cluster file
-        with open(bin_exclusive_file, "r") as binfile:
-            for c, line in enumerate(binfile):
-                bins = line.rstrip().split("\t")
-                bin_exclusive_ids.update(
-                    {uid: f"{bin_exclusive_prefix}{c}" for uid in bins}
-                )
-
     with open(filename, "r") as infile:
         for line in infile:
-            uid, w, node = line.rstrip().split("\t")
+            uid, weigth, node = line.rstrip().split("\t")
+            latest_node = tax.latest(node)
+            if latest_node and latest_node != node:
+                print(f"{node} -> {latest_node}", file=sys.stderr)
+            info[uid] = [int(weigth), latest_node]
 
-            if bin_exclusive_file and uid in bin_exclusive_ids:
-                unode = bin_exclusive_ids[
-                    uid
-                ]  # Add node as custom node with bin exclusive prefix
-            elif pre_cluster_file and uid in pre_clustered_ids:
-                unode = pre_clustered_ids[
-                    uid
-                ]  # get LCA node if pre_cluster_file was given
+    # Map bin exclusive to unique groups (incremental int)
+    bin_exclusive_group = {}
+    bin_exclusive_node = {}
+    if bin_exclusive_file:
+        with open(bin_exclusive_file, "r") as binfile:
+            for c, line in enumerate(binfile, 1):
+                bins = line.rstrip().split("\t")
+                bin_exclusive_group.update({uid: str(c) for uid in bins})
+                lca = tax.lca([info[uid][1] for uid in bins])
+                for uid in bins:
+                    bin_exclusive_node[uid] = lca
+
+    # Create pre-clusters
+    # Store pre-clusters into tuple since there can be more than
+    # one pre-cluster based on the same node due to the lca
+    pre_clusters = []
+    pre_cluster_node = {}
+    if pre_cluster_file:
+        # get LCA of the ids on the pre cluster file
+        with open(pre_cluster_file, "r") as pinfile:
+            for c, line in enumerate(pinfile):
+                clusters = line.rstrip().split("\t")
+                lca = tax.lca([info[uid][1] for uid in clusters])
+                pre_clusters.append((lca, clusters))
+                for uid in clusters:
+                    pre_cluster_node[uid] = lca
+
+    if bin_exclusive_rank or pre_cluster_rank:
+        pre_cluster_rank_aux = {}
+        for uid, (_, latest_node) in info.items():
+            # bin exclusive node
+            if bin_exclusive_rank == "leaves":
+                bin_exclusive_node[uid] = latest_node
+            elif bin_exclusive_rank:
+                parent_node = tax.parent_rank(latest_node, rank=bin_exclusive_rank)
+                if parent_node != tax.undefined_node:
+                    bin_exclusive_node[uid] = parent_node
+            # pre cluster node
+            pc_node = None
+            if pre_cluster_rank == "leaves":
+                pc_node = latest_node
+            elif pre_cluster_rank:
+                parent_node = tax.parent_rank(latest_node, rank=pre_cluster_rank)
+                if parent_node != tax.undefined_node:
+                    pc_node = parent_node
+            if pc_node:
+                if pc_node not in pre_cluster_rank_aux:
+                    pre_cluster_rank_aux[pc_node] = []
+                pre_cluster_rank_aux[pc_node].append(uid)
+                pre_cluster_node[uid] = pc_node
+        pre_clusters = list(pre_cluster_rank_aux.items())
+
+    groups = {}
+    # Add pre clusters before
+    for node, uids in pre_clusters:
+        if node not in groups:
+            groups[node] = group()
+        groups[node].add_clusters([cluster(uids, sum(info[uid][0] for uid in uids))])
+
+    print(pre_clusters)
+    print(bin_exclusive_group)
+    print(groups)
+    for uid, (weigth, latest_node) in info.items():
+        pc_node = pre_cluster_node.get(uid, None)
+        be_node = bin_exclusive_node.get(uid, None)
+
+        print(uid, pc_node, be_node)
+        # Bin exclusive node has to be in the lineage of the pre clustered node to be viable
+        if be_node and pc_node and be_node not in tax.lineage(pc_node):
+            print(
+                f"{uid} cannot be bin exclusive for node {be_node} since it was pre-clustered at a higher node {pc_node}"
+            )
+            be_node = None
+
+        if be_node:
+            # Create bin exclusive node with prefix
+            node = f"{bin_exclusive_prefix}{bin_exclusive_group.get(uid, be_node)}"
+
+            if node not in groups:
+                groups[node] = group()
+
+            # If node was previously pre-clustered, move specific cluster to bin exclusive group
+            if pc_node:
+                # May not be in groups since it was already moved from a previous entry
+                if pc_node in groups:
+                    # May not be in clusters, already moved from previous pre-clustered uid
+                    c = groups[pc_node].get_clusters(with_id=uid)
+                    if c:
+                        groups[node].add_clusters([c])
+                        groups[pc_node].clear_clusters(with_id=uid)
+                        # Delete entry if was only clusters
+                        if groups[pc_node].get_cluster_count() == 0:
+                            del groups[pc_node]
             else:
-                unode = tax.latest(node)
-                if unode and unode != node:
-                    print(f"{node} -> {unode}", file=sys.stderr)
+                groups[node].add_clusters([cluster([uid], weigth)])
 
-            # Get parent rank node
-            if pre_cluster_rank:
-                if pre_cluster_rank == "leaves":
-                    pre_clustered_nodes.add(unode)
-                else:
-                    # Only add to pre-cluster if given rank is available
-                    pnode = tax.parent_rank(unode, rank=pre_cluster_rank)
-                    if pnode != tax.undefined_node:
-                        unode = pnode
-                        pre_clustered_nodes.add(unode)
+        elif not pc_node:
+            if latest_node not in groups:
+                groups[latest_node] = group()
+            groups[latest_node].add_clusters([cluster([uid], weigth)])
 
-            if bin_exclusive_rank:
-                # Use the taxid of the rank for the entry
-                # If entry does not have the rank keep as a loose node (to be clustered)
-                if bin_exclusive_rank == "leaves":
-                    unode = f"{bin_exclusive_prefix}{unode}"
-                else:
-                    pnode = tax.parent_rank(unode, rank=bin_exclusive_rank)
-                    if pnode != tax.undefined_node:
-                        unode = f"{bin_exclusive_prefix}{pnode}"
-
-            if unode != tax.undefined_node:
-                if unode not in groups:
-                    groups[unode] = group()
-                groups[unode].add_clusters([cluster([uid], int(w))])
-                info[uid] = (int(w), unode.replace(bin_exclusive_prefix, "", 1))
-            else:
-                print(node + " not found", file=sys.stderr)
-
-    # Join pre-clustered entries
-    # Only join selected unique ids if pre_cluster_file
-    if pre_cluster_rank or pre_cluster_file:
-        for node, g in groups.items():
-            if node in pre_clustered_nodes:
-                g.join_clusters(
-                    ids=[{i} for i in pre_clustered_ids] if pre_clustered_ids else []
-                )
-
+    print(groups)
     return groups, info
 
 

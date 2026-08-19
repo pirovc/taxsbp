@@ -4,8 +4,8 @@ set -euo pipefail
 ruff format
 ruff check --fix
 
-#echo "Unit tests"
-#python -m unittest discover -s tests/taxsbp/unit/
-#echo "Integration tests"
-#python -m unittest discover -s tests/taxsbp/integration/
-#pdoc -o docs taxsbp taxsbp.taxsbp taxsbp.utils
+
+coverage erase
+coverage run --source=taxsbp --omit="/usr/*,tests/*" -m pytest -s -vv
+coverage report
+coverage html

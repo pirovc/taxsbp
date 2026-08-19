@@ -12,10 +12,6 @@ class cluster:
     def get_ids(self):
         return self.ids
 
-    def update(self, cluster):
-        self.ids.update(cluster.get_ids())
-        self.length += cluster.get_length()
-
     def __repr__(self):
         args = [f"{k}={v!r}" for (k, v) in vars(self).items()]
         return "Cluster({})".format(", ".join(args))
