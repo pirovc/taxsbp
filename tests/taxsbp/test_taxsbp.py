@@ -338,7 +338,7 @@ def test_bin_exclusive_file(bin_exclusive_file, bin_len, expected_bins_content):
         ),
         (
             "rank-1",
-            "rank-4",
+            "rank-4",  # # cannot be bin exclusive, partial pre-cluster overlap
             500,
             ["ABCDEFGHIJKLM"],
         ),
@@ -378,7 +378,7 @@ def test_pre_cluster_bin_exclusive(
         ),
         (
             ["ABCD"],
-            ["AB"],  # cannot be bin exclusive, pre-clustered at higher node
+            ["AB"],  # cannot be bin exclusive, partial overlap with pre-cluster
             200,
             ["ABCD", "EF", "GH", "IJ", "KL", "M"],
         ),
@@ -387,6 +387,36 @@ def test_pre_cluster_bin_exclusive(
             ["ABCDM", "FH"],
             800,
             ["ABCDM", "EGIJKL", "FH"],
+        ),
+        (
+            ["AB"],
+            ["AB", "CD"],
+            300,
+            ["AB", "CD", "EFG", "HIM", "JKL"],
+        ),
+        (
+            ["AB"],
+            ["BC"],  # cannot be bin exclusive since AB is pre-clustered
+            200,
+            ["AB", "CD", "EF", "GH", "IJ", "KL", "M"],
+        ),
+        (
+            ["AB"],
+            ["ABC"],
+            200,
+            ["AB", "C", "DM", "EF", "GH", "IJ", "KL"],
+        ),
+        (
+            ["AB"],
+            ["ABIM"],
+            200,
+            ["AB", "CD", "EF", "GH", "IM", "J", "KL"],
+        ),
+        (
+            ["AB", "CD", "EF"],
+            ["CDEFJK"],
+            800,
+            ["ABGHILM", "CDEFJK"],
         ),
     ],
 )

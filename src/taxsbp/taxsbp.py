@@ -280,18 +280,6 @@ def parse_input3(
                 print(f"{node} -> {latest_node}", file=sys.stderr)
             info[uid] = [int(weigth), latest_node]
 
-    # Map bin exclusive to unique groups (incremental int)
-    bin_exclusive_group = {}
-    bin_exclusive_node = {}
-    if bin_exclusive_file:
-        with open(bin_exclusive_file, "r") as binfile:
-            for c, line in enumerate(binfile, 1):
-                bins = line.rstrip().split("\t")
-                bin_exclusive_group.update({uid: str(c) for uid in bins})
-                lca = tax.lca([info[uid][1] for uid in bins])
-                for uid in bins:
-                    bin_exclusive_node[uid] = lca
-
     # Create pre-clusters
     # Store pre-clusters into tuple since there can be more than
     # one pre-cluster based on the same node due to the lca
@@ -300,23 +288,43 @@ def parse_input3(
     if pre_cluster_file:
         # get LCA of the ids on the pre cluster file
         with open(pre_cluster_file, "r") as pinfile:
-            for c, line in enumerate(pinfile):
-                clusters = line.rstrip().split("\t")
-                lca = tax.lca([info[uid][1] for uid in clusters])
-                pre_clusters.append((lca, clusters))
+            for line in pinfile:
+                clusters = set(line.rstrip().split("\t"))
+                lca_pc = tax.lca([info[uid][1] for uid in clusters])
+                pre_clusters.append((lca_pc, clusters))
                 for uid in clusters:
-                    pre_cluster_node[uid] = lca
+                    pre_cluster_node[uid] = lca_pc
+
+    # Map bin exclusive to unique groups (incremental int)
+    bin_exclusive_groups = []
+    bin_exclusive_groups_idx = {}
+    if bin_exclusive_file:
+        with open(bin_exclusive_file, "r") as binfile:
+            for line in binfile:
+                be_groups = set(line.rstrip().split("\t"))
+                lca_be = tax.lca([info[uid][1] for uid in be_groups])
+                bin_exclusive_groups.append((lca_be, be_groups))
+                for uid in be_groups:
+                    bin_exclusive_groups_idx[uid] = len(bin_exclusive_groups)
 
     if bin_exclusive_rank or pre_cluster_rank:
-        pre_cluster_rank_aux = {}
+        pre_clusters_aux = {}
+        bin_exclusive_groups_aux = {}
         for uid, (_, latest_node) in info.items():
             # bin exclusive node
+            be_node = None
             if bin_exclusive_rank == "leaves":
-                bin_exclusive_node[uid] = latest_node
+                be_node = latest_node
             elif bin_exclusive_rank:
                 parent_node = tax.parent_rank(latest_node, rank=bin_exclusive_rank)
                 if parent_node != tax.undefined_node:
-                    bin_exclusive_node[uid] = parent_node
+                    be_node = parent_node
+            if be_node:
+                if be_node not in bin_exclusive_groups_aux:
+                    bin_exclusive_groups_aux[be_node] = set()
+                bin_exclusive_groups_aux[be_node].add(uid)
+                bin_exclusive_groups_idx[uid] = len(bin_exclusive_groups_aux)
+
             # pre cluster node
             pc_node = None
             if pre_cluster_rank == "leaves":
@@ -326,11 +334,30 @@ def parse_input3(
                 if parent_node != tax.undefined_node:
                     pc_node = parent_node
             if pc_node:
-                if pc_node not in pre_cluster_rank_aux:
-                    pre_cluster_rank_aux[pc_node] = []
-                pre_cluster_rank_aux[pc_node].append(uid)
+                if pc_node not in pre_clusters_aux:
+                    pre_clusters_aux[pc_node] = set()
+                pre_clusters_aux[pc_node].add(uid)
                 pre_cluster_node[uid] = pc_node
-        pre_clusters = list(pre_cluster_rank_aux.items())
+        pre_clusters = list(pre_clusters_aux.items())
+        bin_exclusive_groups = list(bin_exclusive_groups_aux.items())
+
+    # Check bin exclusive overlap pre-cluster
+    if pre_clusters and bin_exclusive_groups:
+        be_to_remove = []
+        for i, be_group in enumerate(bin_exclusive_groups):
+            for _, pre_cluster in pre_clusters:
+                # Reject if bin exclusive group partially overlaps with a pre-cluster
+                intersect = pre_cluster.intersection(be_group[1])
+                if intersect and len(intersect) < len(pre_cluster):
+                    print(
+                        f"{','.join(be_group[1])} cannot be bin exclusive due to a partial overlap with a pre-cluster",
+                        file=sys.stderr,
+                    )
+                    for uid in be_group[1]:
+                        del bin_exclusive_groups_idx[uid]
+                    be_to_remove.append(i)
+        for i in be_to_remove[::-1]:
+            del bin_exclusive_groups[i]
 
     groups = {}
     # Add pre clusters before
@@ -340,23 +367,18 @@ def parse_input3(
         groups[node].add_clusters([cluster(uids, sum(info[uid][0] for uid in uids))])
 
     print(pre_clusters)
-    print(bin_exclusive_group)
-    print(groups)
+    print(bin_exclusive_groups)
+    print(bin_exclusive_groups_idx)
+
     for uid, (weigth, latest_node) in info.items():
         pc_node = pre_cluster_node.get(uid, None)
-        be_node = bin_exclusive_node.get(uid, None)
+        be_idx = bin_exclusive_groups_idx.get(uid, None)
 
-        print(uid, pc_node, be_node)
-        # Bin exclusive node has to be in the lineage of the pre clustered node to be viable
-        if be_node and pc_node and be_node not in tax.lineage(pc_node):
-            print(
-                f"{uid} cannot be bin exclusive for node {be_node} since it was pre-clustered at a higher node {pc_node}"
-            )
-            be_node = None
+        print(uid, pc_node, be_idx)
 
-        if be_node:
+        if be_idx:
             # Create bin exclusive node with prefix
-            node = f"{bin_exclusive_prefix}{bin_exclusive_group.get(uid, be_node)}"
+            node = f"{bin_exclusive_prefix}{be_idx}"
 
             if node not in groups:
                 groups[node] = group()
