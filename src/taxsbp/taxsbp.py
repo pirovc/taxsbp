@@ -302,8 +302,7 @@ def parse_input3(
         with open(bin_exclusive_file, "r") as binfile:
             for line in binfile:
                 be_groups = set(line.rstrip().split("\t"))
-                lca_be = tax.lca([info[uid][1] for uid in be_groups])
-                bin_exclusive_groups.append((lca_be, be_groups))
+                bin_exclusive_groups.append(be_groups)
                 for uid in be_groups:
                     bin_exclusive_groups_idx[uid] = len(bin_exclusive_groups)
 
@@ -339,25 +338,22 @@ def parse_input3(
                 pre_clusters_aux[pc_node].add(uid)
                 pre_cluster_node[uid] = pc_node
         pre_clusters = list(pre_clusters_aux.items())
-        bin_exclusive_groups = list(bin_exclusive_groups_aux.items())
+        bin_exclusive_groups = list(bin_exclusive_groups_aux.values())
 
     # Check bin exclusive overlap pre-cluster
     if pre_clusters and bin_exclusive_groups:
-        be_to_remove = []
         for i, be_group in enumerate(bin_exclusive_groups):
             for _, pre_cluster in pre_clusters:
                 # Reject if bin exclusive group partially overlaps with a pre-cluster
-                intersect = pre_cluster.intersection(be_group[1])
+                intersect = pre_cluster.intersection(be_group)
                 if intersect and len(intersect) < len(pre_cluster):
                     print(
-                        f"{','.join(be_group[1])} cannot be bin exclusive due to a partial overlap with a pre-cluster",
+                        f"{','.join(be_group)} cannot be bin exclusive due to a partial overlap with a pre-cluster",
                         file=sys.stderr,
                     )
-                    for uid in be_group[1]:
+                    for uid in be_group:
                         del bin_exclusive_groups_idx[uid]
-                    be_to_remove.append(i)
-        for i in be_to_remove[::-1]:
-            del bin_exclusive_groups[i]
+                    del bin_exclusive_groups[i]
 
     groups = {}
     # Add pre clusters before
