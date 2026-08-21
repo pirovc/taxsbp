@@ -6,7 +6,7 @@ import pytest
 from taxsbp.taxsbp import taxsbp
 
 base_dir = os.path.dirname(__file__)
-sample_input = f"{base_dir}/data/sample_shuf.tsv"
+sample_input = f"{base_dir}/data/sample.tsv"
 sample_tax = f"{base_dir}/data/sample.tax"
 
 
