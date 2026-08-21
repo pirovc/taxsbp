@@ -121,18 +121,11 @@ def taxsbp(
 ):
     bin_exclusive_prefix = "@@be@@-"
     tax = CustomTx(files=taxonomy_file)
-    # groups, info = parse_input(
-    #     input_file,
-    #     tax,
-    #     pre_cluster,
-    #     pre_cluster_file,
-    #     bin_exclusive,
-    #     bin_exclusive_file,
-    #     bin_exclusive_prefix,
-    # )
 
-    groups, info = parse_input3(
-        input_file,
+    info = parse_input_file(input_file, tax)
+
+    groups = create_groups(
+        info,
         tax,
         pre_cluster,
         pre_cluster_file,
@@ -261,15 +254,7 @@ def generate_stats(bins, info, blen):
     return sts
 
 
-def parse_input3(
-    filename,
-    tax,
-    pre_cluster_rank,
-    pre_cluster_file,
-    bin_exclusive_rank,
-    bin_exclusive_file,
-    bin_exclusive_prefix,
-):
+def parse_input_file(filename, tax):
     # Parse input file into info dict
     info = {}
     with open(filename, "r") as infile:
@@ -280,68 +265,133 @@ def parse_input3(
                 print(f"{node} -> {latest_node}", file=sys.stderr)
             info[uid] = [int(weigth), latest_node]
 
-    # Create pre-clusters
-    # Store pre-clusters into tuple since there can be more than
-    # one pre-cluster based on the same node due to the lca
+    # Return entries sorted by weigth then by uid for consistent results
+    return {k: v for k, v in sorted(info.items(), key=lambda x: (-x[1][0], x[0]))}
+
+
+def parse_pre_cluster_file(pre_cluster_file, info, tax):
+    """
+    Create pre-cluster structures
+    Store pre-clusters into tuple since there can be more than one pre-cluster based on the same node due to the lca.
+    """
     pre_clusters = []
     pre_cluster_node = {}
     if pre_cluster_file:
         # get LCA of the ids on the pre cluster file
-        with open(pre_cluster_file, "r") as pinfile:
-            for line in pinfile:
+        with open(pre_cluster_file, "r") as pcfile:
+            for line in pcfile:
                 clusters = set(line.rstrip().split("\t"))
                 lca_pc = tax.lca([info[uid][1] for uid in clusters])
                 pre_clusters.append((lca_pc, clusters))
                 for uid in clusters:
                     pre_cluster_node[uid] = lca_pc
 
-    # Map bin exclusive to unique groups (incremental int)
+    return pre_clusters, pre_cluster_node
+
+
+def parse_bin_exclusive_file(bin_exclusive_file, tax):
+    """
+    Create bin exclusive structures
+    Map bin exclusive to unique groups (incremental int)
+    """
     bin_exclusive_groups = []
-    bin_exclusive_groups_idx = {}
+    bin_exclusive_idx = {}
     if bin_exclusive_file:
         with open(bin_exclusive_file, "r") as binfile:
             for line in binfile:
                 be_groups = set(line.rstrip().split("\t"))
                 bin_exclusive_groups.append(be_groups)
                 for uid in be_groups:
-                    bin_exclusive_groups_idx[uid] = len(bin_exclusive_groups)
+                    bin_exclusive_idx[uid] = str(len(bin_exclusive_groups))
+    return bin_exclusive_groups, bin_exclusive_idx
 
-    if bin_exclusive_rank or pre_cluster_rank:
-        pre_clusters_aux = {}
-        bin_exclusive_groups_aux = {}
-        for uid, (_, latest_node) in info.items():
-            # bin exclusive node
-            be_node = None
-            if bin_exclusive_rank == "leaves":
-                be_node = latest_node
-            elif bin_exclusive_rank:
-                parent_node = tax.parent_rank(latest_node, rank=bin_exclusive_rank)
-                if parent_node != tax.undefined_node:
-                    be_node = parent_node
-            if be_node:
-                if be_node not in bin_exclusive_groups_aux:
-                    bin_exclusive_groups_aux[be_node] = set()
-                bin_exclusive_groups_aux[be_node].add(uid)
-                bin_exclusive_groups_idx[uid] = len(bin_exclusive_groups_aux)
 
-            # pre cluster node
-            pc_node = None
-            if pre_cluster_rank == "leaves":
-                pc_node = latest_node
-            elif pre_cluster_rank:
-                parent_node = tax.parent_rank(latest_node, rank=pre_cluster_rank)
-                if parent_node != tax.undefined_node:
-                    pc_node = parent_node
-            if pc_node:
-                if pc_node not in pre_clusters_aux:
-                    pre_clusters_aux[pc_node] = set()
-                pre_clusters_aux[pc_node].add(uid)
-                pre_cluster_node[uid] = pc_node
-        pre_clusters = list(pre_clusters_aux.items())
-        bin_exclusive_groups = list(bin_exclusive_groups_aux.values())
+def get_pc_be_by_rank(info, pre_cluster_rank, bin_exclusive_rank, tax):
+    """
+    Create pre-cluster and bin exclusive structures based on taxonomic ranks
+    """
+    bin_exclusive_groups_aux = {}
+    pre_clusters_aux = {}
+    for uid, (_, latest_node) in info.items():
+        # bin exclusive node
+        be_node = None
+        if bin_exclusive_rank == "leaves":
+            be_node = latest_node
+        elif bin_exclusive_rank:
+            parent_node = tax.parent_rank(latest_node, rank=bin_exclusive_rank)
+            if parent_node != tax.undefined_node:
+                be_node = parent_node
+        if be_node:
+            if be_node not in bin_exclusive_groups_aux:
+                bin_exclusive_groups_aux[be_node] = set()
+            bin_exclusive_groups_aux[be_node].add(uid)
+
+        # pre cluster node
+        pc_node = None
+        if pre_cluster_rank == "leaves":
+            pc_node = latest_node
+        elif pre_cluster_rank:
+            parent_node = tax.parent_rank(latest_node, rank=pre_cluster_rank)
+            if parent_node != tax.undefined_node:
+                pc_node = parent_node
+        if pc_node:
+            if pc_node not in pre_clusters_aux:
+                pre_clusters_aux[pc_node] = set()
+            pre_clusters_aux[pc_node].add(uid)
+
+    pre_clusters = list(pre_clusters_aux.items())
+    pre_cluster_node = {uid: node for node, uids in pre_clusters for uid in uids}
+    bin_exclusive_groups = list(bin_exclusive_groups_aux.values())
+    bin_exclusive_idx = {
+        uid: str(c) for c, uids in enumerate(bin_exclusive_groups) for uid in uids
+    }
+
+    return (
+        pre_clusters,
+        pre_cluster_node,
+        bin_exclusive_groups,
+        bin_exclusive_idx,
+    )
+
+
+def create_groups(
+    info,
+    tax,
+    pre_cluster_rank,
+    pre_cluster_file,
+    bin_exclusive_rank,
+    bin_exclusive_file,
+    bin_exclusive_prefix,
+):
+    groups = {}
+
+    pre_clusters = []
+    pre_cluster_node = {}
+    bin_exclusive_groups = []
+    bin_exclusive_idx = {}
+
+    if pre_cluster_file:
+        pre_clusters, pre_cluster_node = parse_pre_cluster_file(
+            pre_cluster_file, info, tax
+        )
+
+    if bin_exclusive_file:
+        bin_exclusive_groups, bin_exclusive_idx = parse_bin_exclusive_file(
+            bin_exclusive_file, tax
+        )
+
+    if pre_cluster_rank or bin_exclusive_rank:
+        ret = get_pc_be_by_rank(info, pre_cluster_rank, bin_exclusive_rank, tax)
+        if pre_cluster_rank:
+            pre_clusters = ret[0]
+            pre_cluster_node = ret[1]
+        if bin_exclusive_rank:
+            bin_exclusive_groups = ret[2]
+            bin_exclusive_idx = ret[3]
 
     # Check bin exclusive overlap pre-cluster
     if pre_clusters and bin_exclusive_groups:
+        to_remove_be = []
         for i, be_group in enumerate(bin_exclusive_groups):
             for _, pre_cluster in pre_clusters:
                 # Reject if bin exclusive group partially overlaps with a pre-cluster
@@ -352,27 +402,22 @@ def parse_input3(
                         file=sys.stderr,
                     )
                     for uid in be_group:
-                        del bin_exclusive_groups_idx[uid]
-                    del bin_exclusive_groups[i]
+                        del bin_exclusive_idx[uid]
+                    to_remove_be.append(i)
+        for i in to_remove_be[::-1]:
+            del bin_exclusive_groups[i]
 
-    groups = {}
-    # Add pre clusters before
+    # Add pre clusters before iterating on all entries
     for node, uids in pre_clusters:
         if node not in groups:
             groups[node] = group()
         groups[node].add_clusters([cluster(uids, sum(info[uid][0] for uid in uids))])
 
-    print(pre_clusters)
-    print(bin_exclusive_groups)
-    print(bin_exclusive_groups_idx)
-
     for uid, (weigth, latest_node) in info.items():
         pc_node = pre_cluster_node.get(uid, None)
-        be_idx = bin_exclusive_groups_idx.get(uid, None)
+        be_idx = bin_exclusive_idx.get(uid, None)
 
-        print(uid, pc_node, be_idx)
-
-        if be_idx:
+        if be_idx is not None:
             # Create bin exclusive node with prefix
             node = f"{bin_exclusive_prefix}{be_idx}"
 
@@ -380,7 +425,7 @@ def parse_input3(
                 groups[node] = group()
 
             # If node was previously pre-clustered, move specific cluster to bin exclusive group
-            if pc_node:
+            if pc_node is not None:
                 # May not be in groups since it was already moved from a previous entry
                 if pc_node in groups:
                     # May not be in clusters, already moved from previous pre-clustered uid
@@ -399,8 +444,7 @@ def parse_input3(
                 groups[latest_node] = group()
             groups[latest_node].add_clusters([cluster([uid], weigth)])
 
-    print(groups)
-    return groups, info
+    return groups
 
 
 if __name__ == "__main__":
