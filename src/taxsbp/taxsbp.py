@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from statistics import mean, median, stdev
 
@@ -86,7 +87,7 @@ def main():
 
     if len(sys.argv) == 1:  # Print help calling script without parameters
         parser.print_help()
-        return False
+        sys.exit(0)
 
     args = parser.parse_args()
     opt = vars(args)
@@ -119,10 +120,12 @@ def taxsbp(
     bin_exclusive_file: str | None = None,
     stats: bool = False,
 ):
+    logger = logging.getLogger(__name__)
+
     bin_exclusive_prefix = "@@be@@-"
     tax = CustomTx(files=taxonomy_file)
 
-    info = parse_input_file(input_file, tax)
+    info = parse_input_file(input_file, tax, logger)
 
     groups = create_groups(
         info,
@@ -132,6 +135,7 @@ def taxsbp(
         bin_exclusive,
         bin_exclusive_file,
         bin_exclusive_prefix,
+        logger,
     )
 
     # Keep only used nodes on taxonomy for faster
@@ -254,16 +258,18 @@ def generate_stats(bins, info, blen):
     return sts
 
 
-def parse_input_file(filename, tax):
+def parse_input_file(filename, tax, logger):
     # Parse input file into info dict
     info = {}
     with open(filename, "r") as infile:
         for line in infile:
             uid, weigth, node = line.rstrip().split("\t")
-            latest_node = tax.latest(node)
-            if latest_node and latest_node != node:
-                print(f"{node} -> {latest_node}", file=sys.stderr)
-            info[uid] = [int(weigth), latest_node]
+            if node not in tax._nodes:
+                logger.warning(
+                    f"{node} node not found in the taxonomy, {uid} assigned to root node ({tax.root_node})"
+                )
+                node = tax.root_node
+            info[uid] = [int(weigth), node]
 
     # Return entries sorted by weigth then by uid for consistent results
     return {k: v for k, v in sorted(info.items(), key=lambda x: (-x[1][0], x[0]))}
@@ -312,13 +318,13 @@ def get_pc_be_by_rank(info, pre_cluster_rank, bin_exclusive_rank, tax):
     """
     bin_exclusive_groups_aux = {}
     pre_clusters_aux = {}
-    for uid, (_, latest_node) in info.items():
+    for uid, (_, node) in info.items():
         # bin exclusive node
         be_node = None
         if bin_exclusive_rank == "leaves":
-            be_node = latest_node
+            be_node = node
         elif bin_exclusive_rank:
-            parent_node = tax.parent_rank(latest_node, rank=bin_exclusive_rank)
+            parent_node = tax.parent_rank(node, rank=bin_exclusive_rank)
             if parent_node != tax.undefined_node:
                 be_node = parent_node
         if be_node:
@@ -329,9 +335,9 @@ def get_pc_be_by_rank(info, pre_cluster_rank, bin_exclusive_rank, tax):
         # pre cluster node
         pc_node = None
         if pre_cluster_rank == "leaves":
-            pc_node = latest_node
+            pc_node = node
         elif pre_cluster_rank:
-            parent_node = tax.parent_rank(latest_node, rank=pre_cluster_rank)
+            parent_node = tax.parent_rank(node, rank=pre_cluster_rank)
             if parent_node != tax.undefined_node:
                 pc_node = parent_node
         if pc_node:
@@ -362,6 +368,7 @@ def create_groups(
     bin_exclusive_rank,
     bin_exclusive_file,
     bin_exclusive_prefix,
+    logger,
 ):
     groups = {}
 
@@ -389,7 +396,7 @@ def create_groups(
             bin_exclusive_groups = ret[2]
             bin_exclusive_idx = ret[3]
 
-    # Check bin exclusive overlap pre-cluster
+    # Check if bin exclusive group overlaps with pre-clustered groups and remove the bin exclusivity
     if pre_clusters and bin_exclusive_groups:
         to_remove_be = []
         for i, be_group in enumerate(bin_exclusive_groups):
@@ -397,9 +404,8 @@ def create_groups(
                 # Reject if bin exclusive group partially overlaps with a pre-cluster
                 intersect = pre_cluster.intersection(be_group)
                 if intersect and len(intersect) < len(pre_cluster):
-                    print(
-                        f"{','.join(be_group)} cannot be bin exclusive due to a partial overlap with a pre-cluster",
-                        file=sys.stderr,
+                    logger.warning(
+                        f"{','.join(be_group)} cannot be bin exclusive due to a partial overlap with a pre-cluster"
                     )
                     for uid in be_group:
                         del bin_exclusive_idx[uid]
@@ -413,16 +419,16 @@ def create_groups(
             groups[node] = group()
         groups[node].add_clusters([cluster(uids, sum(info[uid][0] for uid in uids))])
 
-    for uid, (weigth, latest_node) in info.items():
+    for uid, (weigth, node) in info.items():
         pc_node = pre_cluster_node.get(uid, None)
         be_idx = bin_exclusive_idx.get(uid, None)
 
         if be_idx is not None:
             # Create bin exclusive node with prefix
-            node = f"{bin_exclusive_prefix}{be_idx}"
+            be_node = f"{bin_exclusive_prefix}{be_idx}"
 
-            if node not in groups:
-                groups[node] = group()
+            if be_node not in groups:
+                groups[be_node] = group()
 
             # If node was previously pre-clustered, move specific cluster to bin exclusive group
             if pc_node is not None:
@@ -431,21 +437,18 @@ def create_groups(
                     # May not be in clusters, already moved from previous pre-clustered uid
                     c = groups[pc_node].get_clusters(with_id=uid)
                     if c:
-                        groups[node].add_clusters([c])
+                        groups[be_node].add_clusters([c])
                         groups[pc_node].clear_clusters(with_id=uid)
-                        # Delete entry if was only clusters
+                        # Delete group if empty
                         if groups[pc_node].get_cluster_count() == 0:
                             del groups[pc_node]
             else:
-                groups[node].add_clusters([cluster([uid], weigth)])
+                groups[be_node].add_clusters([cluster([uid], weigth)])
 
+        # If pc node, was already added
         elif not pc_node:
-            if latest_node not in groups:
-                groups[latest_node] = group()
-            groups[latest_node].add_clusters([cluster([uid], weigth)])
+            if node not in groups:
+                groups[node] = group()
+            groups[node].add_clusters([cluster([uid], weigth)])
 
     return groups
-
-
-if __name__ == "__main__":
-    sys.exit(0 if main() else 1)

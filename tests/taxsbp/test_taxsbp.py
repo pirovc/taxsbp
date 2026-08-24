@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import pytest
 
-from taxsbp.taxsbp import taxsbp
+from taxsbp import taxsbp
 
 base_dir = os.path.dirname(__file__)
 sample_input = f"{base_dir}/data/sample.tsv"
@@ -34,6 +34,15 @@ def sanity_check(sample_input, bins_df, stats):
 
 def test_standard():
     bins, stats = taxsbp(input_file=sample_input, taxonomy_file=sample_tax, stats=True)
+    sanity_check(sample_input, to_dataframe(bins), stats)
+
+
+def test_missing_node():
+    bins, stats = taxsbp(
+        input_file=f"{base_dir}/data/sample_missing_node.tsv",
+        taxonomy_file=sample_tax,
+        stats=True,
+    )
     sanity_check(sample_input, to_dataframe(bins), stats)
 
 

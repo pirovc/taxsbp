@@ -37,15 +37,13 @@ class group:
 
         # For each cluster returned by binpaking
         for c in bpck_clusters:
-            if not c:
-                continue
-
-            slen = 0
-            ids = []
-            for e in c:
-                slen += e[0]
-                ids.extend(e[1:])
-            self.clusters.append(cluster(ids=ids, length=slen))
+            if c:
+                slen = 0
+                ids = []
+                for e in c:
+                    slen += e[0]
+                    ids.extend(e[1:])
+                self.clusters.append(cluster(ids=ids, length=slen))
 
     def merge(self, group):
         self.add_clusters(group.get_clusters())
@@ -56,6 +54,6 @@ class group:
     def get_cluster_count(self):
         return len(self.clusters)
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         args = [f"{k}={v!r}" for (k, v) in vars(self).items()]
         return "Group({})".format(", ".join(args))

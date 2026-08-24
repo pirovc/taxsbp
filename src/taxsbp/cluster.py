@@ -12,6 +12,6 @@ class cluster:
     def get_ids(self):
         return self.ids
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         args = [f"{k}={v!r}" for (k, v) in vars(self).items()]
         return "Cluster({})".format(", ".join(args))
